@@ -14,6 +14,8 @@ config_env = {
     **os.environ,
 }
 
+_logger = logging.getLogger(__name__)
+
 cache = Cache(datetime.datetime.now(), [])
 
 logging.basicConfig(
@@ -33,10 +35,11 @@ def get_events():
         events.append(event)    
     return events
 
-async def rave(update: Update, context: ContextTypes.DEFAULT_TYPE):        
-    if not cache.events or (datetime.datetime.now() - cache.last_update).days >= 1:
+async def rave(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not cache.events or (datetime.datetime.now().date() - cache.last_update.date()).days >= 1:
         events = get_events()
         cache.update(events)
+        _logger.info("Cache updated")
 
     message = '<u>Пати на этой неделе:</u>\n\n'
     for event in cache.events:
@@ -54,3 +57,5 @@ if __name__ == '__main__':
     application.add_handler(rave_handler)
     
     application.run_polling()
+
+    _logger.info("Application.stop() complete")
