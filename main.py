@@ -35,16 +35,27 @@ def get_events():
         events.append(event)    
     return events
 
-async def rave(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not cache.events or (datetime.datetime.now().date() - cache.last_update.date()).days >= 1:
-        events = get_events()
-        cache.update(events)
-        _logger.info("Cache updated")
-
+def get_rave_message():
     message = '<u>Пати на этой неделе:</u>\n\n'
     for event in cache.events:
         message += str(event) + '\n'
+    return message
 
+def update_cache():
+    events = get_events()
+    cache.update(events)
+    _logger.info("Cache updated")
+
+async def rave(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not cache.events or (datetime.datetime.now().date() - cache.last_update.date()).days >= 1:
+        update_cache()
+    message = get_rave_message()
+
+    await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
+
+async def update(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    update_cache()
+    message = get_rave_message()
     await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
 
 if __name__ == '__main__':
@@ -55,6 +66,9 @@ if __name__ == '__main__':
     
     rave_handler = CommandHandler('rave', rave)
     application.add_handler(rave_handler)
+
+    update_hander = CommandHandler('update', update)
+    application.add_handler(update_hander)
     
     application.run_polling()
 
