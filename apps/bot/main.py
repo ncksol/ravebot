@@ -2,7 +2,6 @@ import logging
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
 from telegram.constants import ParseMode
-import json
 import os
 import requests
 import datetime
@@ -56,7 +55,17 @@ async def rave(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def update(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_cache()
     message = get_rave_message()
-    await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
+    await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=ParseMode.HTML, disable_web_page_preview=True)    
+
+async def test(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if context.chat_data.get('time') == None:
+        a = 0
+    else:
+        a = context.chat_data.get('time')
+        a += 1
+    
+    context.chat_data['time'] = a
+    await context.bot.send_message(chat_id=update.effective_chat.id, text='current value: ' + str(a))
 
 if __name__ == '__main__':
     events = get_events()
@@ -69,7 +78,8 @@ if __name__ == '__main__':
 
     update_hander = CommandHandler('update', update)
     application.add_handler(update_hander)
+
+    test_handler = CommandHandler('test', test)
+    application.add_handler(test_handler)
     
     application.run_polling()
-
-    _logger.info("Application.stop() complete")

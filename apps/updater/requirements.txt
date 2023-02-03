@@ -1,0 +1,6 @@
+requests
+python-dotenv
+schedule
+SQLAlchemy==2.0.1
+psycopg2-binary
+asyncio
