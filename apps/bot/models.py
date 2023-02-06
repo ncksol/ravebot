@@ -1,7 +1,8 @@
 import datetime
 
 class Event:
-    def __init__(self, title: str, start_time: str, end_time: str, location: str, url: str):
+    def __init__(self, event_id: str, title: str, start_time: str, end_time: str, location: str, url: str):
+        self.event_id = event_id
         self.title = title
         self.start_time = start_time
         self.end_time = end_time

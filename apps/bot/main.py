@@ -1,17 +1,12 @@
 import logging
 from telegram import Update
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
+from telegram.error import BadRequest
+from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, PicklePersistence
 from telegram.constants import ParseMode
-import os
-import requests
 import datetime
+import requests
 from models import Event, Cache
-from dotenv import dotenv_values
-
-config_env = {
-    **dotenv_values(),
-    **os.environ,
-}
+from settings import BotConfiguration, TimeTreeConfiguration
 
 _logger = logging.getLogger(__name__)
 
@@ -22,20 +17,21 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-def get_events():
-    api_key = config_env['TIMETREE_API_KEY']
+def get_events() -> "list[Event]":
+    api_key = TimeTreeConfiguration.key
     api_url = 'https://timetreeapis.com/calendars/UT75VvR4kQ4t/upcoming_events?days=7'
     headers = {'Authorization': 'Bearer ' + api_key}
     r = requests.get(api_url, headers=headers)
     json = r.json()
     events = []
     for data in json['data']:
-        event = Event(data['attributes']['title'], data['attributes']['start_at'], data['attributes']['end_at'], data['attributes']['location'], data['attributes']['url'])
-        events.append(event)    
+        event = Event(event_id=data['id'], title=data['attributes']['title'], start_time=data['attributes']['start_at'], end_time=data['attributes']['end_at'], 
+                      location=data['attributes']['location'], url=data['attributes']['url'])
+        events.append(event)
     return events
 
 def get_rave_message():
-    message = '<u>Пати на этой неделе:</u>\n\n'
+    message = '<u>Upcoming events:</u>\n\n'
     for event in cache.events:
         message += str(event) + '\n'
     return message
@@ -57,21 +53,79 @@ async def update(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = get_rave_message()
     await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=ParseMode.HTML, disable_web_page_preview=True)    
 
-async def test(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if context.chat_data.get('time') == None:
-        a = 0
-    else:
-        a = context.chat_data.get('time')
-        a += 1
+def remove_job_if_exists(name: str, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    """Remove job with given name. Returns whether job was removed."""
+    current_jobs = context.job_queue.get_jobs_by_name(name)
+    if not current_jobs:
+        return False
+    for job in current_jobs:
+        job.schedule_removal()
+    return True
+
+async def alarm(context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Send the alarm message."""
+    job = context.job
+    await context.bot.send_message(job.chat_id, text=f"Beep! {job.data} seconds are over!")
+
+async def update_announcement(context: ContextTypes.DEFAULT_TYPE):
+    announcement_id = None
+    if 'announcement_id' in context.chat_data and context.chat_data["announcement_id"] is not None:
+        announcement_id = int(context.chat_data["announcement_id"])
+
+    job = context.job
+    message = get_rave_message()
+    msg_object = None
+    if announcement_id is not None:
+        try:
+            msg_object = await context.bot.edit_message_text(chat_id=job.chat_id, message_id=announcement_id, text=message, parse_mode=ParseMode.HTML, disable_web_page_preview=True)        
+        except BadRequest as e:
+            if e.message == "Message is not modified: specified new message content and reply markup are exactly the same as a current content and reply markup of the message":
+                _logger.info("Nothing changed. Quitting...")
+                return
+            else:
+                pass
+                
+    if msg_object is None or announcement_id is None:
+        msg_object = await context.bot.send_message(chat_id=job.chat_id, text=message, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
     
-    context.chat_data['time'] = a
-    await context.bot.send_message(chat_id=update.effective_chat.id, text='current value: ' + str(a))
+    if msg_object is not None:
+        await msg_object.pin(disable_notification=True)
+        context.chat_data["announcement_id"] = msg_object.message_id
+            
+async def set(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id != BotConfiguration.admin_id:
+        await update.effective_message.reply_text("Sorry, you are not allowed to use this command.")
+        return
+
+    chat_id = update.effective_message.chat_id
+    job_removed = remove_job_if_exists(str(chat_id), context)
+    context.job_queue.run_daily(update_announcement, time=datetime.time(hour=16, minute=25, second=0), chat_id=chat_id, name=str(chat_id))
+    #context.job_queue.run_repeating(update_announcement, interval=60, chat_id=chat_id, name=str(chat_id))
+    
+    text = "Update timer successfully set!"
+    if job_removed:
+        text += " Old one was removed."
+    await update.effective_message.reply_text(text)
+
+async def unset(update: Update, context: ContextTypes.DEFAULT_TYPE):    
+    user_id = update.effective_user.id
+    if user_id != BotConfiguration.admin_id:
+        await update.effective_message.reply_text("Sorry, you are not allowed to use this command.")
+        return
+    
+    chat_id = update.effective_message.chat_id
+    job_removed = remove_job_if_exists(str(chat_id), context)
+    text = "Update timer successfully removed!" if job_removed else "You have no active update timer."
+    await update.effective_message.reply_text(text)    
 
 if __name__ == '__main__':
+
     events = get_events()
     cache.update(events)
 
-    application = ApplicationBuilder().token(config_env['BOT_TOKEN']).build()
+    persistence = PicklePersistence('bot_data')
+    application = ApplicationBuilder().token(BotConfiguration.token).persistence(persistence).build()
     
     rave_handler = CommandHandler('rave', rave)
     application.add_handler(rave_handler)
@@ -79,7 +133,10 @@ if __name__ == '__main__':
     update_hander = CommandHandler('update', update)
     application.add_handler(update_hander)
 
-    test_handler = CommandHandler('test', test)
-    application.add_handler(test_handler)
+    set_handler = CommandHandler('set', set)
+    application.add_handler(set_handler)
+
+    unset_handler = CommandHandler('unset', unset)
+    application.add_handler(unset_handler)
     
     application.run_polling()
