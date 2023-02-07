@@ -50,8 +50,9 @@ async def rave(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def update(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_cache()
-    message = get_rave_message()
-    await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=ParseMode.HTML, disable_web_page_preview=True)    
+    #message = get_rave_message()
+    #await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=ParseMode.HTML, disable_web_page_preview=True)    
+    await update_announcement(context, update.effective_chat.id)
 
 def remove_job_if_exists(name: str, context: ContextTypes.DEFAULT_TYPE) -> bool:
     """Remove job with given name. Returns whether job was removed."""
@@ -62,22 +63,20 @@ def remove_job_if_exists(name: str, context: ContextTypes.DEFAULT_TYPE) -> bool:
         job.schedule_removal()
     return True
 
-async def alarm(context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Send the alarm message."""
+async def update_announcement_timer(context: ContextTypes.DEFAULT_TYPE):
     job = context.job
-    await context.bot.send_message(job.chat_id, text=f"Beep! {job.data} seconds are over!")
+    await update_announcement(context, job.chat_id)
 
-async def update_announcement(context: ContextTypes.DEFAULT_TYPE):
+async def update_announcement(context: ContextTypes.DEFAULT_TYPE, chat_id: int):
     announcement_id = None
     if 'announcement_id' in context.chat_data and context.chat_data["announcement_id"] is not None:
         announcement_id = int(context.chat_data["announcement_id"])
-
-    job = context.job
+    
     message = get_rave_message()
     msg_object = None
     if announcement_id is not None:
         try:
-            msg_object = await context.bot.edit_message_text(chat_id=job.chat_id, message_id=announcement_id, text=message, parse_mode=ParseMode.HTML, disable_web_page_preview=True)        
+            msg_object = await context.bot.edit_message_text(chat_id=chat_id, message_id=announcement_id, text=message, parse_mode=ParseMode.HTML, disable_web_page_preview=True)        
         except BadRequest as e:
             if e.message == "Message is not modified: specified new message content and reply markup are exactly the same as a current content and reply markup of the message":
                 _logger.info("Nothing changed. Quitting...")
@@ -86,7 +85,7 @@ async def update_announcement(context: ContextTypes.DEFAULT_TYPE):
                 pass
                 
     if msg_object is None or announcement_id is None:
-        msg_object = await context.bot.send_message(chat_id=job.chat_id, text=message, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
+        msg_object = await context.bot.send_message(chat_id=chat_id, text=message, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
     
     if msg_object is not None:
         await msg_object.pin(disable_notification=True)
@@ -100,7 +99,7 @@ async def set(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     chat_id = update.effective_message.chat_id
     job_removed = remove_job_if_exists(str(chat_id), context)
-    context.job_queue.run_daily(update_announcement, time=datetime.time(hour=16, minute=25, second=0), chat_id=chat_id, name=str(chat_id))
+    context.job_queue.run_daily(update_announcement_timer, time=datetime.time(hour=0, minute=5, second=0), chat_id=chat_id, name=str(chat_id))
     #context.job_queue.run_repeating(update_announcement, interval=60, chat_id=chat_id, name=str(chat_id))
     
     text = "Update timer successfully set!"
