@@ -64,6 +64,7 @@ def remove_job_if_exists(name: str, context: ContextTypes.DEFAULT_TYPE) -> bool:
     return True
 
 async def update_announcement_timer(context: ContextTypes.DEFAULT_TYPE):
+    _logger.info("Running scheduled announcement update...")
     job = context.job
     await update_announcement(context, job.chat_id)
 
@@ -76,15 +77,15 @@ async def update_announcement(context: ContextTypes.DEFAULT_TYPE, chat_id: int):
     msg_object = None
     if announcement_id is not None:
         try:
+            _logger.info("Announcement message found. Updating...")
             msg_object = await context.bot.edit_message_text(chat_id=chat_id, message_id=announcement_id, text=message, parse_mode=ParseMode.HTML, disable_web_page_preview=True)        
         except BadRequest as e:
             if e.message == "Message is not modified: specified new message content and reply markup are exactly the same as a current content and reply markup of the message":
                 _logger.info("Nothing changed. Quitting...")
-                return
-            else:
-                pass
+                return            
                 
     if msg_object is None or announcement_id is None:
+        _logger.info("Announcement message not found. Creating new one...")
         msg_object = await context.bot.send_message(chat_id=chat_id, text=message, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
     
     if msg_object is not None:
