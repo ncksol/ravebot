@@ -103,7 +103,6 @@ async def whois(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     member_id = context._user_id
-    member_id = '316738909'
 
     success = remove_job_if_exists(str(member_id), context)
     if success:
