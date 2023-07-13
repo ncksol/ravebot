@@ -1,8 +1,9 @@
 import logging
 from telegram import Update
 from telegram.error import BadRequest
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, PicklePersistence
+from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, PicklePersistence, MessageHandler, filters
 from telegram.constants import ParseMode
+from telegram.constants import MessageEntityType
 import datetime
 import requests
 from models import Event, Cache
@@ -50,9 +51,51 @@ async def rave(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def update(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_cache()
-    #message = get_rave_message()
-    #await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=ParseMode.HTML, disable_web_page_preview=True)    
+    message = get_rave_message()
+    await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=ParseMode.HTML, disable_web_page_preview=True)    
     await update_announcement(context, update.effective_chat.id)
+
+async def help(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await context.bot.send_message(chat_id=update.effective_chat.id, text="Вот ссылка на полезную информацию про группу: https://npdgm.notion.site/npdgm/Nice-People-Dancing-to-Good-Music-3525966262c64a9e931a9d7b1dcda7e3")
+
+async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    mentions = update.effective_message.parse_entities(MessageEntityType.MENTION)
+    list = list(mentions.values())
+    list.len = len(list)
+    first = list[0]
+    
+    message = "Добро пожаловать " + first + ". Очень рады приветствовать тебя в нашей группе! Мы стараемся создавать тут атмосферу теплой домашней тусовки, а поэтому хорошо было бы чтобы окружающие хотя бы немного знали друг о друге. Посему расскажи пожалуйста немного о себе - кто ты, откуда, чем занимаешься, что (или кто) привело тебя к нам в группу и самое главное какую музыку ты любишь слушать (три самых любимых диджея?).\n\rА чтобы узнать побольше о группе и ее участниках кликай сюда, там вся полезная информация - https://npdgm.notion.site/npdgm/Nice-People-Dancing-to-Good-Music-3525966262c64a9e931a9d7b1dcda7e3"
+
+    await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
+
+async def bot_welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # write for loop to iterate through new_chat_members
+    for member in update.effective_message.new_chat_members:
+        #if member.is_bot:
+            #return
+        
+        context.user_data['new_member'] = False
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="Security Alert! Identify yourself " + member.username + "! You have 30 seconds to comply!")
+
+        remove_job_if_exists(str(member.id), context)
+        context.job_queue.run_once(kick_idle, when=30, chat_id=update.effective_chat.id, user_id=member.id)
+
+async def kick_idle(context: ContextTypes.DEFAULT_TYPE):
+    await context.bot.ban_chat_member(chat_id=context.job.chat_id, user_id=context.job.user_id)
+
+async def reply_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    is_new_member = context.user_data.get('new_member', False)
+    if is_new_member == False:
+        return
+    
+    context.user_data['new_member'] = False
+
+async def whois(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    is_new_member = context.user_data.get('new_member', False)
+    if is_new_member == False:
+        return
+    
+    context.user_data['new_member'] = False
 
 def remove_job_if_exists(name: str, context: ContextTypes.DEFAULT_TYPE) -> bool:
     """Remove job with given name. Returns whether job was removed."""
@@ -133,10 +176,23 @@ if __name__ == '__main__':
     update_hander = CommandHandler('update', update)
     application.add_handler(update_hander)
 
+    help_handler = CommandHandler('help', help)
+    application.add_handler(help_handler)
+
+    welcome_handler = CommandHandler('welcome', welcome)
+    application.add_handler(welcome_handler)
+
     set_handler = CommandHandler('set', set)
     application.add_handler(set_handler)
 
     unset_handler = CommandHandler('unset', unset)
     application.add_handler(unset_handler)
+
+    application.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, bot_welcome))
     
+    application.add_handler(MessageHandler(filters.REPLY, reply_handler))
+    
+    whois_handler = MessageHandler(filters.Regex(r'\b#whois\b'), whois)
+    application.add_handler(whois_handler)
+
     application.run_polling()
