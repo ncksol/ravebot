@@ -64,7 +64,7 @@ async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
     list.len = len(list)
     first = list[0]
     
-    message = "Добро пожаловать " + first + ". Очень рады приветствовать тебя в нашей группе! Мы стараемся создавать тут атмосферу теплой домашней тусовки, а поэтому хорошо было бы чтобы окружающие хотя бы немного знали друг о друге. Посему расскажи пожалуйста немного о себе - кто ты, откуда, чем занимаешься, что (или кто) привело тебя к нам в группу и самое главное какую музыку ты любишь слушать (три самых любимых диджея?).\n\rА чтобы узнать побольше о группе и ее участниках кликай сюда, там вся полезная информация - https://npdgm.notion.site/npdgm/Nice-People-Dancing-to-Good-Music-3525966262c64a9e931a9d7b1dcda7e3"
+    message = "Добро пожаловать " + first + ". Очень рады приветствовать тебя в нашей группе! Мы стараемся создавать тут атмосферу теплой домашней тусовки, а поэтому хорошо было бы чтобы окружающие хотя бы немного знали друг о друге. Посему расскажи пожалуйста немного о себе - кто ты, откуда, чем занимаешься, что (или кто) привело тебя к нам в группу и самое главное какую музыку ты любишь слушать (три самых любимых диджея?).\n\rА чтобы узнать побольше о группе и ее участниках кликай сюда, там вся полезная информация - https://npdgm.notion.site/npdgm/Nice-People-Dancing-to-Good-Music-3525966262c64a9e931a9d7b1dcda7e3. (Для того чтобы представится напиши сообщение в чат и добавь к нему тег #whois. Если этого не сделать в течении получаса, то злобный бот тебя кикнет.)"
 
     await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
 
@@ -74,28 +74,49 @@ async def bot_welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
         #if member.is_bot:
             #return
         
-        context.user_data['new_member'] = False
-        await context.bot.send_message(chat_id=update.effective_chat.id, text="Security Alert! Identify yourself " + member.username + "! You have 30 seconds to comply!")
+        context.user_data['new_member'] = True
+
+        name = get_name(member.first_name, member.last_name)
+
+        mention = get_mention(member.id, name)
+
+        message = f"Добро пожаловать {mention}. Очень рады приветствовать тебя в нашей группе! Мы стараемся создавать тут атмосферу теплой домашней тусовки, а поэтому хорошо было бы чтобы окружающие хотя бы немного знали друг о друге. Посему расскажи пожалуйста немного о себе - кто ты, откуда, чем занимаешься, что (или кто) привело тебя к нам в группу и самое главное какую музыку ты любишь слушать (три самых любимых диджея?).\n\rА чтобы узнать побольше о группе и ее участниках кликай сюда, там вся полезная информация - https://npdgm.notion.site/npdgm/Nice-People-Dancing-to-Good-Music-3525966262c64a9e931a9d7b1dcda7e3.\n\r\n\r<b>Для того чтобы представится напиши сообщение в чат c тегом #whois. Если этого не сделать в течении получаса, то злобный бот тебя кикнет.</b>"
+
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=ParseMode.HTML, disable_web_page_preview=False)
 
         remove_job_if_exists(str(member.id), context)
-        context.job_queue.run_once(kick_idle, when=30, chat_id=update.effective_chat.id, user_id=member.id)
+        context.job_queue.run_once(kick_idle, when=30*60, chat_id=update.effective_chat.id, user_id=member.id, name=str(member.id))
+        context.chat_data[str(member.id)] = name
 
 async def kick_idle(context: ContextTypes.DEFAULT_TYPE):
-    await context.bot.ban_chat_member(chat_id=context.job.chat_id, user_id=context.job.user_id)
+    user_id = context.job.user_id
+    username = context.chat_data.pop(str(user_id), None)
+    mention = get_mention(user_id, username)
 
-async def reply_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    is_new_member = context.user_data.get('new_member', False)
-    if is_new_member == False:
-        return
-    
-    context.user_data['new_member'] = False
+    await context.bot.send_message(chat_id=context.job.chat_id, text=f"{mention} не представились в течении получаса и были кикнуты.", parse_mode=ParseMode.HTML)
+    await context.bot.ban_chat_member(chat_id=context.job.chat_id, user_id=context.job.user_id)
+    await context.bot.unban_chat_member(chat_id=context.job.chat_id, user_id=context.job.user_id, only_if_banned=True)
 
 async def whois(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    is_new_member = context.user_data.get('new_member', False)
+    is_new_member = context.user_data.pop('new_member', False)
     if is_new_member == False:
         return
     
-    context.user_data['new_member'] = False
+    member_id = context._user_id
+    member_id = '316738909'
+
+    success = remove_job_if_exists(str(member_id), context)
+    if success:
+        mention = get_mention(member_id, get_name(update.effective_user.first_name, update.effective_user.last_name))
+        await update.effective_message.reply_html(f"Спасибо {mention}! Очень приятно познакомиться.")
+
+def get_name(first_name: str, last_name: str) -> str:
+    if last_name is not None:
+        return f"{first_name} {last_name}"
+    return first_name
+
+def get_mention(user_id: int, name: str) -> str:
+    return f"<a href='tg://user?id={str(user_id)}'>{name}</a>"
 
 def remove_job_if_exists(name: str, context: ContextTypes.DEFAULT_TYPE) -> bool:
     """Remove job with given name. Returns whether job was removed."""
@@ -188,11 +209,9 @@ if __name__ == '__main__':
     unset_handler = CommandHandler('unset', unset)
     application.add_handler(unset_handler)
 
-    application.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, bot_welcome))
+    application.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, bot_welcome))    
     
-    application.add_handler(MessageHandler(filters.REPLY, reply_handler))
-    
-    whois_handler = MessageHandler(filters.Regex(r'\b#whois\b'), whois)
+    whois_handler = MessageHandler(filters.Regex(r'(^|\s+)#whois($|\s+)'), whois)
     application.add_handler(whois_handler)
 
     application.run_polling()
