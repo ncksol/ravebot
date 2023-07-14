@@ -11,7 +11,7 @@ from settings import BotConfiguration, TimeTreeConfiguration
 
 _logger = logging.getLogger(__name__)
 
-cache = Cache(datetime.datetime.now(), [])
+#cache = Cache(datetime.datetime.now(), [])
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -31,28 +31,29 @@ def get_events() -> "list[Event]":
         events.append(event)
     return events
 
-def get_rave_message():
+def get_rave_message(context: ContextTypes.DEFAULT_TYPE):
+    cache = context.chat_data.get('cache', Cache(datetime.datetime.now(), []))    
+    if not cache.events or (datetime.datetime.now().date() - cache.last_update.date()).days >= 1:
+        update_cache(context)
+
     message = '<u>Upcoming events:</u>\n\n'
     for event in cache.events:
         message += str(event) + '\n'
     return message
 
-def update_cache():
+def update_cache(context: ContextTypes.DEFAULT_TYPE):
     events = get_events()
+    cache = context.chat_data.get('cache', Cache(datetime.datetime.now(), []))    
     cache.update(events)
+    context.chat_data['cache'] = cache
     _logger.info("Cache updated")
 
-async def rave(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not cache.events or (datetime.datetime.now().date() - cache.last_update.date()).days >= 1:
-        update_cache()
-    message = get_rave_message()
-
+async def rave(update: Update, context: ContextTypes.DEFAULT_TYPE):    
+    message = get_rave_message(context)
     await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
 
-async def update(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    update_cache()
-    message = get_rave_message()
-    await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=ParseMode.HTML, disable_web_page_preview=True)    
+async def update(update: Update, context: ContextTypes.DEFAULT_TYPE):    
+    update_cache(context)
     await update_announcement(context, update.effective_chat.id)
 
 async def help(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -64,23 +65,20 @@ async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
     list.len = len(list)
     first = list[0]
     
-    message = "Добро пожаловать " + first + ". Очень рады приветствовать тебя в нашей группе! Мы стараемся создавать тут атмосферу теплой домашней тусовки, а поэтому хорошо было бы чтобы окружающие хотя бы немного знали друг о друге. Посему расскажи пожалуйста немного о себе - кто ты, откуда, чем занимаешься, что (или кто) привело тебя к нам в группу и самое главное какую музыку ты любишь слушать (три самых любимых диджея?).\n\rА чтобы узнать побольше о группе и ее участниках кликай сюда, там вся полезная информация - https://npdgm.notion.site/npdgm/Nice-People-Dancing-to-Good-Music-3525966262c64a9e931a9d7b1dcda7e3. (Для того чтобы представится напиши сообщение в чат и добавь к нему тег #whois. Если этого не сделать в течении получаса, то злобный бот тебя кикнет.)"
+    message = "Добро пожаловать " + first + ". Очень рады приветствовать тебя в нашей группе! Мы стараемся создавать тут атмосферу теплой домашней тусовки, а поэтому хорошо было бы чтобы окружающие хотя бы немного знали друг о друге. Посему расскажи пожалуйста немного о себе - кто ты, откуда, чем занимаешься, что (или кто) привело тебя к нам в группу и самое главное какую музыку ты любишь слушать (три самых любимых диджея?).\n\rА чтобы узнать побольше о группе и ее участниках кликай сюда, там вся полезная информация - https://npdgm.notion.site/npdgm/Nice-People-Dancing-to-Good-Music-3525966262c64a9e931a9d7b1dcda7e3"
 
-    await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
+    await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=ParseMode.HTML, disable_web_page_preview=False)
 
 async def bot_welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # write for loop to iterate through new_chat_members
     for member in update.effective_message.new_chat_members:
-        #if member.is_bot:
-            #return
+        if member.is_bot:
+            return
         
         context.user_data['new_member'] = True
-
         name = get_name(member.first_name, member.last_name)
-
         mention = get_mention(member.id, name)
 
-        message = f"Добро пожаловать {mention}. Очень рады приветствовать тебя в нашей группе! Мы стараемся создавать тут атмосферу теплой домашней тусовки, а поэтому хорошо было бы чтобы окружающие хотя бы немного знали друг о друге. Посему расскажи пожалуйста немного о себе - кто ты, откуда, чем занимаешься, что (или кто) привело тебя к нам в группу и самое главное какую музыку ты любишь слушать (три самых любимых диджея?).\n\rА чтобы узнать побольше о группе и ее участниках кликай сюда, там вся полезная информация - https://npdgm.notion.site/npdgm/Nice-People-Dancing-to-Good-Music-3525966262c64a9e931a9d7b1dcda7e3.\n\r\n\r<b>Для того чтобы представится напиши сообщение в чат c тегом #whois. Если этого не сделать в течении получаса, то злобный бот тебя кикнет.</b>"
+        message = f"Добро пожаловать {mention}. Очень рады приветствовать тебя в нашей группе! Мы стараемся создавать тут атмосферу теплой домашней тусовки, а поэтому хорошо было бы чтобы окружающие хотя бы немного знали друг о друге. Посему расскажи пожалуйста немного о себе - кто ты, откуда, чем занимаешься, что (или кто) привело тебя к нам в группу и самое главное какую музыку ты любишь слушать (три самых любимых диджея?).\n\rА чтобы узнать побольше о группе и ее участниках кликай сюда, там вся полезная информация - https://npdgm.notion.site/npdgm/Nice-People-Dancing-to-Good-Music-3525966262c64a9e931a9d7b1dcda7e3.\n\r\n\r<b>Для того чтобы представиться напиши сообщение в чат c тегом #whois. Если этого не сделать в течении получаса, то злобный бот тебя кикнет.</b>"
 
         await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=ParseMode.HTML, disable_web_page_preview=False)
 
@@ -93,7 +91,7 @@ async def kick_idle(context: ContextTypes.DEFAULT_TYPE):
     username = context.chat_data.pop(str(user_id), None)
     mention = get_mention(user_id, username)
 
-    await context.bot.send_message(chat_id=context.job.chat_id, text=f"{mention} не представились в течении получаса и были кикнуты.", parse_mode=ParseMode.HTML)
+    await context.bot.send_message(chat_id=context.job.chat_id, text=f"{mention} не представились в течении получаса и покидают чат.", parse_mode=ParseMode.HTML)
     await context.bot.ban_chat_member(chat_id=context.job.chat_id, user_id=context.job.user_id)
     await context.bot.unban_chat_member(chat_id=context.job.chat_id, user_id=context.job.user_id, only_if_banned=True)
 
@@ -136,7 +134,7 @@ async def update_announcement(context: ContextTypes.DEFAULT_TYPE, chat_id: int):
     if 'announcement_id' in context.chat_data and context.chat_data["announcement_id"] is not None:
         announcement_id = int(context.chat_data["announcement_id"])
     
-    message = get_rave_message()
+    message = get_rave_message(context)
     msg_object = None
     if announcement_id is not None:
         try:
@@ -163,8 +161,7 @@ async def set(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     chat_id = update.effective_message.chat_id
     job_removed = remove_job_if_exists(str(chat_id), context)
-    context.job_queue.run_daily(update_announcement_timer, time=datetime.time(hour=0, minute=5, second=0), chat_id=chat_id, name=str(chat_id))
-    #context.job_queue.run_repeating(update_announcement, interval=60, chat_id=chat_id, name=str(chat_id))
+    context.job_queue.run_daily(update_announcement_timer, time=datetime.time(hour=0, minute=5, second=0), chat_id=chat_id, name=str(chat_id))    
     
     text = "Update timer successfully set!"
     if job_removed:
@@ -183,10 +180,6 @@ async def unset(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.effective_message.reply_text(text)    
 
 if __name__ == '__main__':
-
-    events = get_events()
-    cache.update(events)
-
     persistence = PicklePersistence('bot_data')
     application = ApplicationBuilder().token(BotConfiguration.token).persistence(persistence).build()
     
