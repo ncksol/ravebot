@@ -6,17 +6,40 @@ from telegram.constants import ParseMode
 from telegram.constants import MessageEntityType
 import datetime
 import requests
+import json
+import re
 from models import Event, Cache
 from settings import BotConfiguration, TimeTreeConfiguration
+from bs4 import BeautifulSoup
 
 _logger = logging.getLogger(__name__)
-
-#cache = Cache(datetime.datetime.now(), [])
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
+
+def get_ld_json(url: str) -> dict:
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    }
+    r = requests.get(url, headers=headers)
+    if r.status_code != 200:
+        _logger.error(f"Failed to load event: {r.text}")
+        return None
+    
+    soup = BeautifulSoup(r.content, features="html.parser")
+    ld_json = soup.find("script", type="application/ld+json")
+    if ld_json is None:
+        _logger.error(f"Failed to load event data: {r.text}")
+        return None
+    
+    return json.loads(ld_json.string)
+
+def cut_string(string: str, length: int):
+    if len(string) > length:
+        string = string[:length-3] + "..."
+    return string
 
 def get_events() -> "list[Event]":
     api_key = TimeTreeConfiguration.key
@@ -27,9 +50,45 @@ def get_events() -> "list[Event]":
     events = []
     for data in json['data']:
         event = Event(event_id=data['id'], title=data['attributes']['title'], start_time=data['attributes']['start_at'], end_time=data['attributes']['end_at'], 
-                      location=data['attributes']['location'], url=data['attributes']['url'])
+                      location=data['attributes']['location'], url=data['attributes']['url'], description=data['attributes']['description'])
         events.append(event)
     return events
+
+def create_calendar_event(event: Event) -> bool:    
+    api_key = TimeTreeConfiguration.key
+    api_url = 'https://timetreeapis.com/calendars/UT75VvR4kQ4t/events'
+    headers = {'Authorization': 'Bearer ' + api_key + '', 'Accept': 'application/vnd.timetree.v1+json', 'Content-Type': 'application/json'}
+
+    payload = {
+        "data": {
+        "attributes": {
+            "category": "schedule",
+            "title": f"{cut_string(event.title, 50)}",
+            "all_day": False,
+            "start_at": f"{event.start_time}",
+            "start_timezone": "Europe/London",
+            "end_at": f"{event.end_time}",
+            "end_timezone": "Europe/London",
+            "description": f"{cut_string(event.description, 1000)}",
+            "location": f"{cut_string(event.location, 100)}",
+            "url": f"{event.url}",
+        },
+        "relationships": {
+            "label": {
+            "data": {
+                "id": "UT75VvR4kQ4t,9",
+                "type": "label"
+            }
+            }
+        }
+    }
+    }
+
+    r = requests.post(api_url, headers=headers, json=payload)
+    if r.status_code != 201:
+        _logger.error(f"Failed to create event: {r.text}")
+        return False
+    return True
 
 def get_rave_message(context: ContextTypes.DEFAULT_TYPE):
     cache = context.chat_data.get('cache', Cache(datetime.datetime.now(), []))    
@@ -177,7 +236,32 @@ async def unset(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_message.chat_id
     job_removed = remove_job_if_exists(str(chat_id), context)
     text = "Update timer successfully removed!" if job_removed else "You have no active update timer."
-    await update.effective_message.reply_text(text)    
+    await update.effective_message.reply_text(text)
+
+async def create_event(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    mentions = update.effective_message.parse_entities(MessageEntityType.URL)
+    url = next(iter(mentions.values()))
+
+    if url is None:
+        await update.effective_message.reply_text("No event URL found.")
+        return
+    
+    if re.match(r'^https:\/\/ra\.co\/events\/\d+$', url) is None:
+        await update.effective_message.reply_text("Invalid event URL. Accepted format: https://ra.co/events/1234567")
+        return
+    
+    json = get_ld_json(url)
+    if json is None:
+        await update.effective_message.reply_text("Invalid event URL.")
+        return
+    
+    event = Event(title=json['name'], url=url, description=json['description'], start_time=json['startDate'], end_time=json['endDate'], location=json['location']['name'])
+    created = create_calendar_event(event)
+    if created:
+        await update.effective_message.reply_text("Event successfully created!")
+    else:
+        await update.effective_message.reply_text("Failed to create event.")
+
 
 if __name__ == '__main__':
     persistence = PicklePersistence('bot_data')
@@ -205,5 +289,8 @@ if __name__ == '__main__':
     
     whois_handler = MessageHandler(filters.Regex(r'(^|\s+)#whois($|\s+)'), whois)
     application.add_handler(whois_handler)
+
+    create_event_handler = CommandHandler('createevent', create_event)
+    application.add_handler(create_event_handler)
 
     application.run_polling()
