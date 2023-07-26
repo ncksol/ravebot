@@ -130,3 +130,4 @@ dmypy.json
 .DS_Store
 .vscode/settings.json
 /bot_data
+bot_data
