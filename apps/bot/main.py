@@ -13,6 +13,7 @@ from settings import BotConfiguration, TimeTreeConfiguration
 from bs4 import BeautifulSoup
 
 _logger = logging.getLogger(__name__)
+_welcome_message = "Привет {name}. Добро пожаловать в нашу группу. Тут мы обсуждаем разную электронную музыку, делимся интересным треками и организовываем совместные походы на ивенты. Мы стараемся создавать атмосферу теплой домашней тусовки, а поэтому хорошо было бы чтобы окружающие хотя бы немного знали друг о друге. Посему расскажи пожалуйста немного о себе - кто ты, откуда, чем занимаешься, что (или кто) привело тебя к нам в группу и самое главное какие стили электронной музыки тебе наиболее близки (три самых любимых диджея?).\n\rА чтобы узнать побольше о группе и ее участниках кликай сюда, там вся полезная информация - https://npdgm.notion.site/npdgm/Nice-People-Dancing-to-Good-Music-3525966262c64a9e931a9d7b1dcda7e3.\n\r\n\r<b>Для того чтобы представиться напиши сообщение в чат c тегом #whois. Если этого не сделать в течении пары часов, то злобный бот тебя кикнет.</b>"
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -92,7 +93,7 @@ def create_calendar_event(event: Event) -> bool:
 
 def get_rave_message(context: ContextTypes.DEFAULT_TYPE):
     cache = context.chat_data.get('cache', Cache(datetime.datetime.now(), []))    
-    if not cache.events or (datetime.datetime.now().date() - cache.last_update.date()).days >= 1:
+    if not cache.events or len(cache.events) == 0 or (datetime.datetime.now().date() - cache.last_update.date()).days >= 1:
         update_cache(context)
 
     message = '<u>Upcoming events:</u>\n\n'
@@ -118,16 +119,6 @@ async def update(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(chat_id=update.effective_chat.id, text="Вот ссылка на полезную информацию про группу: https://npdgm.notion.site/npdgm/Nice-People-Dancing-to-Good-Music-3525966262c64a9e931a9d7b1dcda7e3")
 
-async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    mentions = update.effective_message.parse_entities(MessageEntityType.MENTION)
-    list = list(mentions.values())
-    list.len = len(list)
-    first = list[0]
-    
-    message = "Добро пожаловать " + first + ". Очень рады приветствовать тебя в нашей группе! Мы стараемся создавать тут атмосферу теплой домашней тусовки, а поэтому хорошо было бы чтобы окружающие хотя бы немного знали друг о друге. Посему расскажи пожалуйста немного о себе - кто ты, откуда, чем занимаешься, что (или кто) привело тебя к нам в группу и самое главное какую музыку ты любишь слушать (три самых любимых диджея?).\n\rА чтобы узнать побольше о группе и ее участниках кликай сюда, там вся полезная информация - https://npdgm.notion.site/npdgm/Nice-People-Dancing-to-Good-Music-3525966262c64a9e931a9d7b1dcda7e3"
-
-    await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=ParseMode.HTML, disable_web_page_preview=False)
-
 async def bot_welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for member in update.effective_message.new_chat_members:
         if member.is_bot:
@@ -137,20 +128,28 @@ async def bot_welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
         name = get_name(member.first_name, member.last_name)
         mention = get_mention(member.id, name)
 
-        message = f"Добро пожаловать {mention}. Очень рады приветствовать тебя в нашей группе! Мы стараемся создавать тут атмосферу теплой домашней тусовки, а поэтому хорошо было бы чтобы окружающие хотя бы немного знали друг о друге. Посему расскажи пожалуйста немного о себе - кто ты, откуда, чем занимаешься, что (или кто) привело тебя к нам в группу и самое главное какую музыку ты любишь слушать (три самых любимых диджея?).\n\rА чтобы узнать побольше о группе и ее участниках кликай сюда, там вся полезная информация - https://npdgm.notion.site/npdgm/Nice-People-Dancing-to-Good-Music-3525966262c64a9e931a9d7b1dcda7e3.\n\r\n\r<b>Для того чтобы представиться напиши сообщение в чат c тегом #whois. Если этого не сделать в течении получаса, то злобный бот тебя кикнет.</b>"
+        message = _welcome_message.format(name=mention)
 
         await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=ParseMode.HTML, disable_web_page_preview=False)
 
         remove_job_if_exists(str(member.id), context)
-        context.job_queue.run_once(kick_idle, when=30*60, chat_id=update.effective_chat.id, user_id=member.id, name=str(member.id))
+        context.job_queue.run_once(warn_idle, when=90*60, chat_id=update.effective_chat.id, user_id=member.id, name=str(member.id))
         context.chat_data[str(member.id)] = name
+
+async def warn_idle(context: ContextTypes.DEFAULT_TYPE):
+    user_id = context.job.user_id
+    username = context.chat_data.get(str(user_id), None)
+    mention = get_mention(user_id, username)
+
+    await context.bot.send_message(chat_id=context.job.chat_id, text=f"{mention} все ещё не представились. У тебя есть еще полчаса прежде чем мы распрощаемся.", parse_mode=ParseMode.HTML)    
+    context.job_queue.run_once(kick_idle, when=30*60, chat_id=update.effective_chat.id, user_id=user_id, name=str(user_id))
 
 async def kick_idle(context: ContextTypes.DEFAULT_TYPE):
     user_id = context.job.user_id
     username = context.chat_data.pop(str(user_id), None)
     mention = get_mention(user_id, username)
 
-    await context.bot.send_message(chat_id=context.job.chat_id, text=f"{mention} не представились в течении получаса и покидают чат.", parse_mode=ParseMode.HTML)
+    await context.bot.send_message(chat_id=context.job.chat_id, text=f"{mention} не представились и покидают чат.", parse_mode=ParseMode.HTML)
     await context.bot.ban_chat_member(chat_id=context.job.chat_id, user_id=context.job.user_id)
     await context.bot.unban_chat_member(chat_id=context.job.chat_id, user_id=context.job.user_id, only_if_banned=True)
 
@@ -219,8 +218,9 @@ async def set(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     chat_id = update.effective_message.chat_id
-    job_removed = remove_job_if_exists(str(chat_id), context)
-    context.job_queue.run_daily(update_announcement_timer, time=datetime.time(hour=0, minute=5, second=0), chat_id=chat_id, name=str(chat_id))    
+    job_removed = remove_job_if_exists(f"update_{chat_id}", context)
+    #context.job_queue.run_daily(update_announcement_timer, time=datetime.time(hour=0, minute=5, second=0), chat_id=chat_id, name=str(chat_id))    
+    context.job_queue.run_repeating(update_announcement_timer, interval=1*60*60, first=60, chat_id=chat_id, name=str(chat_id))
     
     text = "Update timer successfully set!"
     if job_removed:
@@ -234,7 +234,7 @@ async def unset(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     chat_id = update.effective_message.chat_id
-    job_removed = remove_job_if_exists(str(chat_id), context)
+    job_removed = remove_job_if_exists(f"update_{chat_id}", context)
     text = "Update timer successfully removed!" if job_removed else "You have no active update timer."
     await update.effective_message.reply_text(text)
 
@@ -275,9 +275,6 @@ if __name__ == '__main__':
 
     help_handler = CommandHandler('help', help)
     application.add_handler(help_handler)
-
-    welcome_handler = CommandHandler('welcome', welcome)
-    application.add_handler(welcome_handler)
 
     set_handler = CommandHandler('set', set)
     application.add_handler(set_handler)
