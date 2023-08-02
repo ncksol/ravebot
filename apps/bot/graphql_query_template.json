@@ -1,0 +1,7 @@
+{
+    "operationName": "GET_EVENT",
+    "variables": {
+        "id": "__ID__"
+    },
+    "query": "query GET_EVENT($id: ID!) { event(id: $id) { id title startTime endTime content venue { name } }}"
+}

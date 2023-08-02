@@ -10,32 +10,43 @@ import json
 import re
 from models import Event, Cache
 from settings import BotConfiguration, TimeTreeConfiguration
-from bs4 import BeautifulSoup
 
 _logger = logging.getLogger(__name__)
 _welcome_message = "Привет {name}. Добро пожаловать в нашу группу. Тут мы обсуждаем разную электронную музыку, делимся интересным треками и организовываем совместные походы на ивенты. Мы стараемся создавать атмосферу теплой домашней тусовки, а поэтому хорошо было бы чтобы окружающие хотя бы немного знали друг о друге. Посему расскажи пожалуйста немного о себе - кто ты, откуда, чем занимаешься, что (или кто) привело тебя к нам в группу и самое главное какие стили электронной музыки тебе наиболее близки (три самых любимых диджея?).\n\rА чтобы узнать побольше о группе и ее участниках кликай сюда, там вся полезная информация - https://npdgm.notion.site/npdgm/Nice-People-Dancing-to-Good-Music-3525966262c64a9e931a9d7b1dcda7e3.\n\r\n\r<b>Для того чтобы представиться напиши сообщение в чат c тегом #whois. Если этого не сделать в течении пары часов, то злобный бот тебя кикнет.</b>"
+
+URL = 'https://ra.co/graphql'
+HEADERS = {
+    'Content-Type': 'application/json',
+    'Referrer': 'https://ra.co/events/uk/london',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:106.0) Gecko/20100101 Firefox/106.0'
+}
+QUERY_TEMPLATE_PATH = "graphql_query_template.json"
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 
-def get_ld_json(url: str) -> dict:
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-    }
-    r = requests.get(url, headers=headers)
-    if r.status_code != 200:
-        _logger.error(f"Failed to load event: {r.text}")
-        return None
+def get_ra_event(id: str):
+    with open(QUERY_TEMPLATE_PATH, "r") as file:
+            payload = json.load(file)
+
+    payload["variables"]["id"] = id
+
+    response = requests.post(URL, headers=HEADERS, json=payload)
+
+    try:
+        response.raise_for_status()
+        data = response.json()
+    except (requests.exceptions.RequestException, ValueError):
+        print(f"Error: {response.status_code}")
+        return []
+
+    if 'data' not in data:
+        print(f"Error: {data}")
+        return []
     
-    soup = BeautifulSoup(r.content, features="html.parser")
-    ld_json = soup.find("script", type="application/ld+json")
-    if ld_json is None:
-        _logger.error(f"Failed to load event data: {r.text}")
-        return None
-    
-    return json.loads(ld_json.string)
+    return data["data"]["event"]
 
 def cut_string(string: str, length: int):
     if len(string) > length:
@@ -246,16 +257,19 @@ async def create_event(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.effective_message.reply_text("No event URL found.")
         return
     
-    if re.match(r'^https:\/\/ra\.co\/events\/\d+$', url) is None:
+    pattern = r'https://ra.co/events/(\d+)'
+    match = re.match(pattern, url)
+    if match is None:
         await update.effective_message.reply_text("Invalid event URL. Accepted format: https://ra.co/events/1234567")
         return
     
-    json = get_ld_json(url)
+    event_id = match.group(1)
+    json = get_ra_event(event_id)
     if json is None:
         await update.effective_message.reply_text("Invalid event URL.")
         return
     
-    event = Event(title=json['name'], url=url, description=json['description'], start_time=json['startDate'], end_time=json['endDate'], location=json['location']['name'])
+    event = Event(title=json['title'], url=url, description=json['content'], start_time=json['startTime'], end_time=json['endTime'], location=json['venue']['name'])
     created = create_calendar_event(event)
     if created:
         await update.effective_message.reply_text("Event successfully created!")
