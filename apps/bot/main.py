@@ -59,11 +59,14 @@ def get_events() -> "list[Event]":
     headers = {'Authorization': 'Bearer ' + api_key}
     r = requests.get(api_url, headers=headers)
     json = r.json()
-    events = []
+    events = []    
     for data in json['data']:
         event = Event(event_id=data['id'], title=data['attributes']['title'], start_time=data['attributes']['start_at'], end_time=data['attributes']['end_at'], 
                       location=data['attributes']['location'], url=data['attributes']['url'], description=data['attributes']['description'])
         events.append(event)
+    
+    if len(events) == 0:
+        _logger.warning("No events found")
     return events
 
 def create_calendar_event(event: Event) -> bool:    
@@ -107,9 +110,12 @@ def get_rave_message(context: ContextTypes.DEFAULT_TYPE):
     if not cache.events or len(cache.events) == 0 or (datetime.datetime.now().date() - cache.last_update.date()).days >= 1:
         update_cache(context)
 
-    message = '<u>Upcoming events:</u>\n\n'
+    message = '<u>Upcoming events:</u>\n\n'    
     for event in cache.events:
         message += str(event) + '\n'
+    
+    if len(cache.events) == 0:
+        message += 'No events found 😢'
     return message
 
 def update_cache(context: ContextTypes.DEFAULT_TYPE):
@@ -153,7 +159,7 @@ async def warn_idle(context: ContextTypes.DEFAULT_TYPE):
     mention = get_mention(user_id, username)
 
     await context.bot.send_message(chat_id=context.job.chat_id, text=f"{mention} все ещё не представились. У тебя есть еще полчаса прежде чем мы распрощаемся.", parse_mode=ParseMode.HTML)    
-    context.job_queue.run_once(kick_idle, when=30*60, chat_id=update.effective_chat.id, user_id=user_id, name=str(user_id))
+    context.job_queue.run_once(kick_idle, when=30*60, chat_id=context.job.chat_id, user_id=user_id, name=str(user_id))
 
 async def kick_idle(context: ContextTypes.DEFAULT_TYPE):
     user_id = context.job.user_id
