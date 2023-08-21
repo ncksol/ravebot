@@ -152,6 +152,7 @@ async def bot_welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
         remove_job_if_exists(str(member.id), context)
         context.job_queue.run_once(warn_idle, when=90*60, chat_id=update.effective_chat.id, user_id=member.id, name=str(member.id))
         context.chat_data[str(member.id)] = name
+        context.chat_data[f'@{member.username}'] = member.id
 
 async def warn_idle(context: ContextTypes.DEFAULT_TYPE):
     user_id = context.job.user_id
@@ -282,6 +283,23 @@ async def create_event(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.effective_message.reply_text("Failed to create event.")
 
+async def guest_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id != BotConfiguration.admin_id:
+        await update.effective_message.reply_text("Sorry, you are not allowed to use this command.")
+        return
+
+    mentions = update.effective_message.parse_entities(MessageEntityType.MENTION)    
+    username = list(mentions.values())[0]
+    user_id = context.chat_data.get(username, None)
+    if user_id is None:
+        await update.effective_message.reply_text("User is not in the queue.")
+        return
+        
+    success = remove_job_if_exists(str(user_id), context)
+    if success:
+        mention = get_mention(user_id, username)
+        await update.effective_message.reply_html(f"{mention} провели через гест лист!")
 
 if __name__ == '__main__':
     persistence = PicklePersistence('bot_data')
@@ -302,12 +320,15 @@ if __name__ == '__main__':
     unset_handler = CommandHandler('unset', unset)
     application.add_handler(unset_handler)
 
-    application.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, bot_welcome))    
+    application.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, bot_welcome))
     
-    whois_handler = MessageHandler(filters.Regex(r'(^|\s+)#whois($|\s+)'), whois)
+    whois_handler = MessageHandler(filters.Regex(r'(?i)(^|\s+)#whois($|\s+)'), whois)
     application.add_handler(whois_handler)
 
     create_event_handler = CommandHandler('createevent', create_event)
     application.add_handler(create_event_handler)
+
+    guest_list_handler = CommandHandler('guestlist', guest_list)
+    application.add_handler(guest_list_handler)
 
     application.run_polling()
