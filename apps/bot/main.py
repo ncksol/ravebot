@@ -12,7 +12,9 @@ from models import Event, Cache
 from settings import BotConfiguration, TimeTreeConfiguration
 
 _logger = logging.getLogger(__name__)
-_welcome_message = "Привет {name}. Добро пожаловать в нашу группу. Тут мы обсуждаем разную электронную музыку, делимся интересным треками и организовываем совместные походы на ивенты. Мы стараемся создавать атмосферу теплой домашней тусовки, а поэтому хорошо было бы чтобы окружающие хотя бы немного знали друг о друге. Посему расскажи пожалуйста немного о себе - кто ты, откуда, чем занимаешься, что (или кто) привело тебя к нам в группу и самое главное какие стили электронной музыки тебе наиболее близки (три самых любимых диджея?).\n\rА чтобы узнать побольше о группе и ее участниках кликай сюда, там вся полезная информация - https://npdgm.notion.site/npdgm/Nice-People-Dancing-to-Good-Music-3525966262c64a9e931a9d7b1dcda7e3.\n\r\n\r<b>Для того чтобы представиться напиши сообщение в чат c тегом #whois. Если этого не сделать в течении пары часов, то злобный бот тебя кикнет.</b>"
+_welcome_message = "Привет {name}. Добро пожаловать в нашу группу. Тут мы обсуждаем разную электронную музыку, делимся интересным треками и организовываем совместные походы на ивенты. Мы стараемся создавать атмосферу теплой домашней тусовки, а поэтому хорошо было бы чтобы окружающие хотя бы немного знали друг о друге. Посему расскажи пожалуйста немного о себе - кто ты, откуда, чем занимаешься, что (или кто) привело тебя к нам в группу и самое главное какие стили электронной музыки тебе наиболее близки (три самых любимых диджея?).\n\r<b>Для того чтобы представиться напиши сообщение в чат c тегом #whois. Если этого не сделать в течении пары часов, то злобный бот тебя кикнет.</b>"
+
+_success_message = "Спасибо {name}! Очень приятно познакомиться. Чтобы узнать побольше о группе и ее участниках кликай сюда, там вся полезная информация - https://npdgm.notion.site/npdgm/Nice-People-Dancing-to-Good-Music-3525966262c64a9e931a9d7b1dcda7e3."
 
 URL = 'https://ra.co/graphql'
 HEADERS = {
@@ -181,7 +183,8 @@ async def whois(update: Update, context: ContextTypes.DEFAULT_TYPE):
     success = remove_job_if_exists(str(member_id), context)
     if success:
         mention = get_mention(member_id, get_name(update.effective_user.first_name, update.effective_user.last_name))
-        await update.effective_message.reply_html(f"Спасибо {mention}! Очень приятно познакомиться.")
+        message = _success_message.format(name=mention)
+        await update.effective_message.reply_html(message)
 
 def get_name(first_name: str, last_name: str) -> str:
     if last_name is not None:
