@@ -151,7 +151,9 @@ async def bot_welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         message = _welcome_message.format(name=mention)
 
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=ParseMode.HTML, disable_web_page_preview=False)
+        welcome_msg = await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=ParseMode.HTML, disable_web_page_preview=False)
+
+        context.chat_data['welcome_' + str(member.id)] = welcome_msg.message_id
 
         remove_job_if_exists(str(member.id), context)
         context.job_queue.run_once(warn_idle, when=90*60, chat_id=update.effective_chat.id, user_id=member.id, name=str(member.id))
@@ -163,7 +165,10 @@ async def warn_idle(context: ContextTypes.DEFAULT_TYPE):
     username = context.chat_data.get(str(user_id), None)
     mention = get_mention(user_id, username)
 
-    await context.bot.send_message(chat_id=context.job.chat_id, text=f"{mention} все ещё не представились. У тебя есть еще полчаса прежде чем мы распрощаемся.", parse_mode=ParseMode.HTML)    
+    warn_msg = await context.bot.send_message(chat_id=context.job.chat_id, text=f"{mention} все ещё не представились. У тебя есть еще полчаса прежде чем мы распрощаемся.", parse_mode=ParseMode.HTML)    
+
+    context.chat_data['warn_' + str(user_id)] = warn_msg.message_id
+
     context.job_queue.run_once(kick_idle, when=30*60, chat_id=context.job.chat_id, user_id=user_id, name=str(user_id))
 
 async def kick_idle(context: ContextTypes.DEFAULT_TYPE):
@@ -174,6 +179,23 @@ async def kick_idle(context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(chat_id=context.job.chat_id, text=f"{mention} не представились и покидают чат.", parse_mode=ParseMode.HTML)
     await context.bot.ban_chat_member(chat_id=context.job.chat_id, user_id=context.job.user_id)
     await context.bot.unban_chat_member(chat_id=context.job.chat_id, user_id=context.job.user_id, only_if_banned=True)
+
+    await clean_up_welcome_message(context, context.job.chat_id, user_id)
+    await clean_up_warn_message(context, context.job.chat_id, user_id)
+
+async def clean_up_welcome_message(context: ContextTypes.DEFAULT_TYPE, chat_id: int, user_id: int):
+    welcome_msg_id = context.chat_data.pop('welcome_' + str(user_id), None)
+    if welcome_msg_id is not None:
+        await context.bot.delete_message(chat_id=chat_id, message_id=welcome_msg_id)
+    else:
+        _logger.warning(f"Welcome message for user {user_id} not found.")
+
+async def clean_up_warn_message(context: ContextTypes.DEFAULT_TYPE, chat_id: int, user_id: int):
+    warn_msg_id = context.chat_data.pop('warn_' + str(user_id), None)
+    if warn_msg_id is not None:
+        await context.bot.delete_message(chat_id=chat_id, message_id=warn_msg_id)
+    else:
+        _logger.warning(f"Warn message for user {user_id} not found.")
 
 async def whois(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_new_member = context.user_data.pop('new_member', False)
@@ -379,10 +401,36 @@ async def guest_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.effective_message.reply_text("User is not in the queue.")
         return
         
+    mention = get_mention(user_id, username)
     success = remove_job_if_exists(str(user_id), context)
     if success:
-        mention = get_mention(user_id, username)
         await update.effective_message.reply_html(f"{mention} провели через гест лист!")
+        await clean_up_welcome_message(context, update.effective_chat.id, user_id)
+        await clean_up_warn_message(context, update.effective_chat.id, user_id)
+            
+        message = _success_message.format(name=mention)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=ParseMode.HTML, disable_web_page_preview=False)
+
+async def kick(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id != BotConfiguration.admin_id:
+        await update.effective_message.reply_text("Sorry, you are not allowed to use this command.")
+        return
+
+    mentions = update.effective_message.parse_entities(MessageEntityType.MENTION)    
+    username = list(mentions.values())[0]
+    user_id = context.chat_data.get(username, None)
+    if user_id is None:
+        await update.effective_message.reply_text("User is not in the queue.")
+        return
+    
+    mention = get_mention(user_id, username)
+    success = remove_job_if_exists(str(user_id), context)
+    if success:
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=f"{mention}, not today. Sorry!")        
+        await clean_up_welcome_message(context, update.effective_chat.id, user_id)
+        await clean_up_warn_message(context, update.effective_chat.id, user_id)            
+        await context.bot.ban_chat_member(chat_id=context.job.chat_id, user_id=user_id)    
 
 if __name__ == '__main__':
     persistence = PicklePersistence('bot_data')
@@ -413,5 +461,8 @@ if __name__ == '__main__':
 
     guest_list_handler = CommandHandler('guestlist', guest_list)
     application.add_handler(guest_list_handler)
+
+    kick_handler = CommandHandler('kick', kick)
+    application.add_handler(kick_handler)
 
     application.run_polling()
