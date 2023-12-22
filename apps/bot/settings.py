@@ -14,5 +14,8 @@ class BotConfiguration:
     token = config_env["BOT_TOKEN"]
     admin_id = int(config_env["ADMIN_ID"])
 
-class TimeTreeConfiguration:    
-    key = config_env["TIMETREE_API_KEY"]    
+class CalendarConfiguration:        
+    api_key = config_env["TEAMUP_API_KEY"]
+    calendar_key = config_env["TEAMUP_CALENDAR_KEY"]
+    subcalendar_id = config_env["TEAMUP_SUBCALENDAR_ID"]
+    url = f"https://api.teamup.com/{calendar_key}"

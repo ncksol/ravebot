@@ -11,7 +11,7 @@ import requests
 import json
 import re
 from models import Event, Cache
-from settings import BotConfiguration, TimeTreeConfiguration
+from settings import BotConfiguration, CalendarConfiguration
 
 _logger = logging.getLogger(__name__)
 _welcome_message = "Привет {name}. Добро пожаловать в нашу группу. Тут мы обсуждаем разную электронную музыку, делимся интересным треками и организовываем совместные походы на ивенты. Мы стараемся создавать атмосферу теплой домашней тусовки, а поэтому хорошо было бы чтобы окружающие хотя бы немного знали друг о друге. Посему расскажи пожалуйста немного о себе - кто ты, откуда, чем занимаешься, что (или кто) привело тебя к нам в группу и самое главное какие стили электронной музыки тебе наиболее близки (три самых любимых диджея?).\n\r<b>Для того чтобы представиться напиши сообщение в чат c тегом #whois. Если этого не сделать в течении пары часов, то злобный бот тебя кикнет.</b>"
@@ -24,7 +24,7 @@ HEADERS = {
     'Referrer': 'https://ra.co/events/uk/london',
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:106.0) Gecko/20100101 Firefox/106.0'
 }
-QUERY_TEMPLATE_PATH = "graphql_query_template.json"
+QUERY_TEMPLATE_PATH = "apps/bot/graphql_query_template.json"
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -58,15 +58,19 @@ def cut_string(string: str, length: int):
     return string
 
 def get_events() -> "list[Event]":
-    api_key = TimeTreeConfiguration.key
-    api_url = 'https://timetreeapis.com/calendars/UT75VvR4kQ4t/upcoming_events?days=7'
-    headers = {'Authorization': 'Bearer ' + api_key}
+    api_key = CalendarConfiguration.api_key
+    headers = {'TeamUp-Token': api_key}
+
+    today = datetime.date.today()
+    monday = today - datetime.timedelta(days=today.weekday())    
+    api_url = f'{CalendarConfiguration.url}/events?startDate={today.strftime("%Y-%m-%d")}&endDate={(today + datetime.timedelta(6)).strftime("%Y-%m-%d")}'
+
     r = requests.get(api_url, headers=headers)
     json = r.json()
     events = []    
-    for data in json['data']:
-        event = Event(event_id=data['id'], title=data['attributes']['title'], start_time=data['attributes']['start_at'], end_time=data['attributes']['end_at'], 
-                      location=data['attributes']['location'], url=data['attributes']['url'], description=data['attributes']['description'])
+    for data in json['events']:
+        event = Event(event_id=data['id'], title=data['title'], start_time=data['start_dt'], end_time=data['end_dt'], 
+                      location=data['location'], url=data['custom']['url'], description=data['notes'])
         events.append(event)
     
     if len(events) == 0:
@@ -74,33 +78,24 @@ def get_events() -> "list[Event]":
     return events
 
 def create_calendar_event(event: Event) -> bool:    
-    api_key = TimeTreeConfiguration.key
-    api_url = 'https://timetreeapis.com/calendars/UT75VvR4kQ4t/events'
-    headers = {'Authorization': 'Bearer ' + api_key + '', 'Accept': 'application/vnd.timetree.v1+json', 'Content-Type': 'application/json'}
+    api_key = CalendarConfiguration.api_key
+    headers = {'TeamUp-Token': api_key, 'Content-Type': 'application/json'}
+
+    api_url = f'{CalendarConfiguration.url}/events'
 
     payload = {
-        "data": {
-        "attributes": {
-            "category": "schedule",
-            "title": f"{cut_string(event.title, 50)}",
-            "all_day": False,
-            "start_at": f"{event.start_time}",
-            "start_timezone": "Europe/London",
-            "end_at": f"{event.end_time}",
-            "end_timezone": "Europe/London",
-            "description": f"{cut_string(event.description, 1000)}",
-            "location": f"{cut_string(event.location, 100)}",
-            "url": f"{event.url}",
-        },
-        "relationships": {
-            "label": {
-            "data": {
-                "id": "UT75VvR4kQ4t,9",
-                "type": "label"
-            }
-            }
+        "subcalendar_ids": [
+            CalendarConfiguration.subcalendar_id
+        ],
+        "start_dt": f"{event.start_time}",
+        "end_dt": f"{event.end_time}",
+        "tz" : "Europe/London",
+        "notes": f"{cut_string(event.description, 65535)}",
+        "title": f"{cut_string(event.title, 255)}",
+        "location": f"{cut_string(event.location, 255)}",
+        "custom": {
+            "url": f"{event.url}"
         }
-    }
     }
 
     r = requests.post(api_url, headers=headers, json=payload)
@@ -304,7 +299,7 @@ async def create_event(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if event is None:
         return
-        
+            
     created = create_calendar_event(event)
     if created:
         await update.effective_message.reply_text("Event successfully created!")
@@ -325,6 +320,8 @@ async def process_ra_event(url: str) -> Event:
         return
     
     event = Event(title=json['title'], url=url, description=json['content'], start_time=json['startTime'], end_time=json['endTime'], location=json['venue']['name'])
+    event.start_time = datetime.datetime.strptime(event.start_time, '%Y-%m-%dT%H:%M:%S.%f').strftime('%Y-%m-%dT%H:%M:%SZ')
+    event.end_time = datetime.datetime.strptime(event.end_time, '%Y-%m-%dT%H:%M:%S.%f').strftime('%Y-%m-%dT%H:%M:%SZ')
     
     return event
 

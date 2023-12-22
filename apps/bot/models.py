@@ -11,7 +11,7 @@ class Event:
         self.description = description
 
     def __str__(self):
-        return f'<b>{datetime.datetime.strptime(self.start_time, "%Y-%m-%dT%H:%M:%S.%fZ").strftime("%d.%m")}</b> - {self.location} @ {self.title} - <a href="{self.url}">{self.url}</a>'        
+        return f'<b>{datetime.datetime.strptime(self.start_time, "%Y-%m-%dT%H:%M:%S%z").strftime("%d.%m")}</b> - {self.title} @ {self.location} - <a href="{self.url}">{self.url}</a>'        
 
 class Cache:
     def __init__(self, last_update: datetime, events: list[Event]):
