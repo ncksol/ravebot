@@ -24,7 +24,8 @@ HEADERS = {
     'Referrer': 'https://ra.co/events/uk/london',
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:106.0) Gecko/20100101 Firefox/106.0'
 }
-QUERY_TEMPLATE_PATH = "apps/bot/graphql_query_template.json"
+#QUERY_TEMPLATE_PATH = "apps/bot/graphql_query_template.json"
+QUERY_TEMPLATE_PATH = "graphql_query_template.json"
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
