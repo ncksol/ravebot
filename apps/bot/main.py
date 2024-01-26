@@ -1,8 +1,8 @@
 import datetime
 
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import BadRequest
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, PicklePersistence, MessageHandler, filters
+from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, PicklePersistence, MessageHandler, filters, CallbackQueryHandler
 from telegram.constants import ParseMode
 from telegram.constants import MessageEntityType
 from urllib.parse import urlparse
@@ -11,9 +11,9 @@ from ra import process_ra_event
 from dice import process_dice_event
 from models import Cache
 from settings import BotConfiguration
-from events_calendar import get_events, create_calendar_event
+from events_calendar import get_events, create_calendar_event, search_event
 from utils import get_name, get_mention, logger
-from text import welcome_message, success_message, help_message, warn_message, kick_message, no_event_url_message, unsupported_event_url_message, event_created_message, event_creation_error_message, admin_access_error_message, queue_user_not_found_message, guest_list_success_message, kick_message, upcoming_events_header, no_upcoming_events_message
+from text import welcome_message, success_message, help_message, warn_message, kick_message, no_event_url_message, unsupported_event_url_message, event_created_message, event_creation_error_message, admin_access_error_message, queue_user_not_found_message, guest_list_success_message, kick_message, upcoming_events_header, no_upcoming_events_message, duplicate_event_message, duplicate_event_question_message, duplicate_event_create_button_text, duplicate_event_skip_button_text
 
 async def rave_command(update: Update, context: ContextTypes.DEFAULT_TYPE):    
     message = get_rave_message(context)
@@ -112,6 +112,18 @@ async def create_event_command(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.effective_message.reply_text(event_creation_error_message)
         return
             
+    duplicate = search_event(event)
+    if duplicate is not None:
+        message = duplicate_event_question_message + '\n\n' + duplicate
+        await update.effective_message.reply_text(message, disable_web_page_preview=True,
+                                                  reply_markup=InlineKeyboardMarkup([
+                                                      [InlineKeyboardButton(duplicate_event_create_button_text, callback_data="duplicate_event_create"),
+                                                       InlineKeyboardButton(duplicate_event_skip_button_text, callback_data="duplicate_event_skip")]
+                                                       ]))
+        
+        context.user_data['event'] = event
+        return
+
     created = create_calendar_event(event)
     if created:
         await update.effective_message.reply_text(event_created_message)
@@ -119,6 +131,24 @@ async def create_event_command(update: Update, context: ContextTypes.DEFAULT_TYP
     else:
         await update.effective_message.reply_text(event_creation_error_message)
 
+async def button_click_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    if query.data == "duplicate_event_skip":
+        message = query.message.text.replace(duplicate_event_question_message, duplicate_event_message)
+        await query.edit_message_text(text=message, disable_web_page_preview=True)
+    elif query.data == "duplicate_event_create":
+        event = context.user_data.pop('event', None)        
+        if event is None:
+            await query.edit_message_text(text=event_creation_error_message)
+            return
+        
+        created = create_calendar_event(event)
+        if created:
+            await query.edit_message_text(text=event_created_message)            
+            update_cache(context)
+        else:
+            await query.edit_message_text(text=event_creation_error_message)
 
 async def guest_list_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -267,6 +297,8 @@ async def clean_up_warn_message(context: ContextTypes.DEFAULT_TYPE, chat_id: int
     else:
         logger.warning(f"Warn message for user {user_id} not found.")
 
+
+
 if __name__ == '__main__':
     persistence = PicklePersistence('bot_data')
     application = ApplicationBuilder().token(BotConfiguration.token).persistence(persistence).build()
@@ -299,6 +331,8 @@ if __name__ == '__main__':
 
     kick_handler = CommandHandler('kick', kick_command)
     application.add_handler(kick_handler)
+
+    application.add_handler(CallbackQueryHandler(button_click_handler))
 
     application.run_polling()
 

@@ -28,3 +28,11 @@ kick_message = "{name}, not today. Sorry!"
 upcoming_events_header = "<u>На этой неделе мы гуляем тут:</u>\n\n"
 
 no_upcoming_events_message = "А нигде мы не гуляем! Дома сидим."
+
+duplicate_event_question_message = "Кажется такой ивент у нас уже есть. Оно?"
+
+duplicate_event_message = "А такой ивент у нас уже есть."
+
+duplicate_event_create_button_text = "Создать ивент"
+
+duplicate_event_skip_button_text = "Не создавать ивент"

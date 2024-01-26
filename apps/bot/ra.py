@@ -1,6 +1,7 @@
 import requests, json, re, datetime, os
 
 from models import Event
+from settings import RAConfiguration
 
 URL = 'https://ra.co/graphql'
 HEADERS = {
@@ -10,11 +11,11 @@ HEADERS = {
 }
 
 #QUERY_TEMPLATE_PATH = "apps/bot/graphql_query_template.json"
-QUERY_TEMPLATE_PATH = "graphql_query_template.json"
+#QUERY_TEMPLATE_PATH = "graphql_query_template.json"
 #QUERY_TEMPLATE_PATH = os.getenv("GRAPHQL_QUERY_TEMPLATE_PATH")
 
 def get_ra_event(id: str):
-    with open(QUERY_TEMPLATE_PATH, "r") as file:
+    with open(RAConfiguration.query_template_path, "r") as file:
             payload = json.load(file)
 
     payload["variables"]["id"] = id
