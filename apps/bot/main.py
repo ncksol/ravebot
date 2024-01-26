@@ -15,15 +15,18 @@ from events_calendar import get_events, create_calendar_event, search_event
 from utils import get_name, get_mention, logger
 from text import welcome_message, success_message, help_message, warn_message, kick_message, no_event_url_message, unsupported_event_url_message, event_created_message, event_creation_error_message, admin_access_error_message, queue_user_not_found_message, guest_list_success_message, kick_message, upcoming_events_header, no_upcoming_events_message, duplicate_event_message, duplicate_event_question_message, duplicate_event_create_button_text, duplicate_event_skip_button_text
 
-async def rave_command(update: Update, context: ContextTypes.DEFAULT_TYPE):    
+async def rave_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if is_old_command(update, context): return    
     message = get_rave_message(context)
     await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
 
-async def update_command(update: Update, context: ContextTypes.DEFAULT_TYPE):    
+async def update_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if is_old_command(update, context): return
     update_cache(context)
     await update_announcement(context, update.effective_chat.id)
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if is_old_command(update, context): return
     await context.bot.send_message(chat_id=update.effective_chat.id, text=help_message)
 
 async def new_member_welcome_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -60,6 +63,7 @@ async def whois_reply_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.effective_message.reply_html(message)
 
 async def set_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if is_old_command(update, context): return    
     user_id = update.effective_user.id
     if user_id != BotConfiguration.admin_id:
         await update.effective_message.reply_text(admin_access_error_message)
@@ -75,6 +79,7 @@ async def set_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.effective_message.reply_text(text)
 
 async def unset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):    
+    if is_old_command(update, context): return
     user_id = update.effective_user.id
     if user_id != BotConfiguration.admin_id:
         await update.effective_message.reply_text(admin_access_error_message)
@@ -86,6 +91,8 @@ async def unset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.effective_message.reply_text(text)
 
 async def create_event_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if is_old_command(update, context): return
+
     mentions = update.effective_message.parse_entities(MessageEntityType.URL)
     if len(list(mentions.values())) == 0:
         await update.effective_message.reply_text(no_event_url_message)
@@ -151,6 +158,7 @@ async def button_click_handler(update: Update, context: ContextTypes.DEFAULT_TYP
             await query.edit_message_text(text=event_creation_error_message)
 
 async def guest_list_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if is_old_command(update, context): return
     user_id = update.effective_user.id
     if user_id != BotConfiguration.admin_id:
         await update.effective_message.reply_text(admin_access_error_message)
@@ -297,6 +305,9 @@ async def clean_up_warn_message(context: ContextTypes.DEFAULT_TYPE, chat_id: int
     else:
         logger.warning(f"Warn message for user {user_id} not found.")
 
+def is_old_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    difference = abs(update.message.date - datetime.datetime.now(update.message.date.tzinfo))
+    return difference.total_seconds() > 60
 
 
 if __name__ == '__main__':
