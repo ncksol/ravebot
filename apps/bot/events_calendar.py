@@ -32,7 +32,7 @@ def search_event(event: Event) -> str:
 
     params = {
         "startDate": datetime.datetime.strptime(event.start_time, "%Y-%m-%dT%H:%M:%S%z").strftime("%Y-%m-%d"),
-        "query": extract_first_8_words(event.title)
+        "query": event.url
     }
     encoded_params = urllib.parse.urlencode(params)
     api_url = f'{CalendarConfiguration.api_url}/events?{encoded_params}'
