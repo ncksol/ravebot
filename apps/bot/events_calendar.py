@@ -1,6 +1,7 @@
 import datetime
 import requests
 import urllib.parse
+from dateutil import parser
 
 from utils import cut_string, logger
 from models import Event
@@ -18,7 +19,9 @@ def get_events() -> "list[Event]":
     json = r.json()
     events = []    
     for data in json['events']:
-        event = Event(event_id=data['id'], title=data['title'], start_time=data['start_dt'], end_time=data['end_dt'], 
+        start_time_no_tz = parser.parse(data['start_dt']).replace(tzinfo=None).strftime("%Y-%m-%dT%H:%M:%S")
+        end_time_no_tz = parser.parse(data['end_dt']).replace(tzinfo=None).strftime("%Y-%m-%dT%H:%M:%S")
+        event = Event(event_id=data['id'], title=data['title'], start_time=start_time_no_tz, end_time=end_time_no_tz, 
                       location=data['location'], url=data['custom']['url'], description=data['notes'])
         events.append(event)
     
