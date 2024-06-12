@@ -31,7 +31,7 @@ def search_event(event: Event) -> str:
     headers = {'TeamUp-Token': api_key, 'Content-Type': 'application/json'}
 
     params = {
-        "startDate": datetime.datetime.strptime(event.start_time, "%Y-%m-%dT%H:%M:%S%z").strftime("%Y-%m-%d"),
+        "startDate": datetime.datetime.strptime(event.start_time, "%Y-%m-%dT%H:%M:%S").strftime("%Y-%m-%d"),
         "query": event.url
     }
     encoded_params = urllib.parse.urlencode(params)
