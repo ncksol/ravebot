@@ -95,13 +95,13 @@ async def create_event_command(update: Update, context: ContextTypes.DEFAULT_TYP
 
     mentions = update.effective_message.parse_entities(MessageEntityType.URL)
     if len(list(mentions.values())) == 0:
-        await update.effective_message.reply_text(no_event_url_message)
+        #await update.effective_message.reply_text(no_event_url_message)
         return
     
     url = next(iter(mentions.values()))
 
     if url is None:
-        await update.effective_message.reply_text(no_event_url_message)
+        #await update.effective_message.reply_text(no_event_url_message)
         return
     
     event = None
