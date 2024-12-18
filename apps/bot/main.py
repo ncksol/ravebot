@@ -29,6 +29,20 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_old_command(update, context): return
     await context.bot.send_message(chat_id=update.effective_chat.id, text=help_message)
 
+async def member_left_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    member = update.effective_message.left_chat_member
+    if member.is_bot:
+        return
+
+    user_id = member.id
+    if user_id is None:
+        return
+    
+    success = remove_job_if_exists(str(user_id), context)
+    if success:
+        await clean_up_welcome_message(context, update.effective_chat.id, user_id)
+        await clean_up_warn_message(context, update.effective_chat.id, user_id)    
+
 async def new_member_welcome_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for member in update.effective_message.new_chat_members:
         if member.is_bot:
@@ -330,6 +344,8 @@ if __name__ == '__main__':
     application.add_handler(unset_handler)
 
     application.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, new_member_welcome_command))
+
+    application.add_handler(MessageHandler(filters.StatusUpdate.LEFT_CHAT_MEMBER, member_left_command))
     
     whois_handler = MessageHandler(filters.Regex(r'(?i)(^|\s+)#whois($|\s+)'), whois_reply_command)
     application.add_handler(whois_handler)
