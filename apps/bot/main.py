@@ -218,7 +218,10 @@ async def kick_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(chat_id=update.effective_chat.id, text=kick_message.format(name=mention))        
         await clean_up_welcome_message(context, update.effective_chat.id, user_id)
         await clean_up_warn_message(context, update.effective_chat.id, user_id)            
-        await context.bot.ban_chat_member(chat_id=context.job.chat_id, user_id=user_id)    
+        
+         # Calculate the datetime object that is one minute from now
+        until_date = datetime.datetime.now() + datetime.timedelta(minutes=1)
+        await context.bot.ban_chat_member(chat_id=context.job.chat_id, user_id=user_id, until_date=until_date)
 
 
 def remove_job_if_exists(name: str, context: ContextTypes.DEFAULT_TYPE) -> bool:    
