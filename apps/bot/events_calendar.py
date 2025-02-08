@@ -84,6 +84,11 @@ def create_calendar_event(event: Event) -> bool:
         return False
     return True
 
+
+
+def get_calendar_link():
+    return CalendarConfiguration.reader_url
+
 def extract_first_8_words(s):
     # Split the string into words
     words = s.split()

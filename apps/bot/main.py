@@ -11,7 +11,7 @@ from ra import process_ra_event
 from dice import process_dice_event
 from models import Cache
 from settings import BotConfiguration
-from events_calendar import get_events, create_calendar_event, search_event
+from events_calendar import get_calendar_link, get_events, create_calendar_event, search_event
 from utils import get_name, get_mention, logger
 from text import welcome_message, success_message, help_message, warn_message, kick_message, no_event_url_message, unsupported_event_url_message, event_created_message, event_creation_error_message, admin_access_error_message, queue_user_not_found_message, guest_list_success_message, kick_message, upcoming_events_header, no_upcoming_events_message, duplicate_event_message, duplicate_event_question_message, duplicate_event_create_button_text, duplicate_event_skip_button_text
 
@@ -223,6 +223,11 @@ async def kick_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         until_date = datetime.datetime.now() + datetime.timedelta(minutes=1)
         await context.bot.ban_chat_member(chat_id=context.job.chat_id, user_id=user_id, until_date=until_date)
 
+async def calendar_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if is_old_command(update, context): return    
+    message = get_calendar_link()
+    await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
+
 
 def remove_job_if_exists(name: str, context: ContextTypes.DEFAULT_TYPE) -> bool:    
     current_jobs = context.job_queue.get_jobs_by_name(name)
@@ -361,6 +366,9 @@ if __name__ == '__main__':
 
     kick_handler = CommandHandler('kick', kick_command)
     application.add_handler(kick_handler)
+
+    calendar_handler = CommandHandler('calendar', calendar_command)
+    application.add_handler(calendar_handler)
 
     application.add_handler(CallbackQueryHandler(button_click_handler))
 
