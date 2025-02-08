@@ -1,0 +1,6 @@
+app = "rave-bot"
+kill_signal = "SIGINT"
+kill_timeout = 5
+processes = []
+[env]
+  GRAPHQL_QUERY_TEMPLATE_PATH = "graphql_query_template.json"
