@@ -1,9 +1,9 @@
 name: Fly Deploy
-on:
-  workflow_dispatch:
+on:  
   push:
     branches:
-      - master    # change to main if needed
+      - main
+  workflow_dispatch:
 jobs:
   deploy:
     name: Deploy app
