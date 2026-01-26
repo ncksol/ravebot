@@ -85,7 +85,6 @@ def get_event_details(item_id: str) -> dict:
     start_date = format_event_date(data['dates']['event_start_date'], '%Y-%m-%dT%H:%M:%S%z')
     end_date = format_event_date(data['dates']['event_end_date'], '%Y-%m-%dT%H:%M:%S%z')
     venue_address = data['venues'][0]['address']
-    #event_venue_name = data['venues'][0]['name']
     event_details = {
         "description": description,
         "start_date": start_date,
