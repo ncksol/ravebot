@@ -56,10 +56,21 @@ def validate_and_sanitize_url(url: str, allowed_domains: list) -> tuple:
         if not parsed.netloc:
             return (False, None, "Invalid URL: missing domain", None)
         
-        # Extract domain and validate against allowed list
-        domain = parsed.netloc.lower()
-        if domain not in allowed_domains:
-            return (False, None, f"Unsupported domain. Only {', '.join(allowed_domains)} are supported", domain)
+        # Reject URLs with user authentication (e.g., user@domain or user:pass@domain)
+        if parsed.username or parsed.password:
+            return (False, None, "URLs with authentication credentials are not allowed", None)
+        
+        # Extract hostname (without port) for domain validation
+        # This prevents bypass attempts with ports like ra.co:8080 or subdomains
+        hostname = parsed.hostname
+        if not hostname:
+            return (False, None, "Invalid URL: missing hostname", None)
+        
+        hostname = hostname.lower()
+        
+        # Validate domain exactly matches (no subdomain bypass)
+        if hostname not in allowed_domains:
+            return (False, None, f"Unsupported domain. Only {', '.join(allowed_domains)} are supported", hostname)
         
         # Sanitize the URL by reconstructing it with validated components
         sanitized_url = urlunparse((
@@ -71,7 +82,7 @@ def validate_and_sanitize_url(url: str, allowed_domains: list) -> tuple:
             parsed.fragment
         ))
         
-        return (True, sanitized_url, None, domain)
+        return (True, sanitized_url, None, hostname)
         
     except Exception as e:
         logger.error(f"URL validation error: {e}")

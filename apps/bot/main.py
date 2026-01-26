@@ -127,7 +127,7 @@ async def create_event_command(update: Update, context: ContextTypes.DEFAULT_TYP
     is_valid, sanitized_url, error_msg, domain = validate_and_sanitize_url(url, allowed_domains)
     
     if not is_valid:
-        logger.warning(f"Invalid URL provided by user {username} (ID: {user_id}): {url}. Error: {error_msg}")
+        logger.warning(f"Invalid URL provided by user {username} (ID: {user_id}), domain: {domain or 'unknown'}. Error: {error_msg}")
         if "HTTPS" in error_msg or "scheme" in error_msg:
             await update.effective_message.reply_text(invalid_url_scheme_message)
         elif "Unsupported domain" in error_msg:
