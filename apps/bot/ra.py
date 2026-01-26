@@ -52,7 +52,7 @@ async def process_ra_event(url: str) -> Event:
     
     try:
         venue = event_data.get('venue', {})
-        location = venue.get('name', '') if venue else ''
+        location = venue.get('name', '')
         start_time = event_data.get('startTime', '')
         end_time = event_data.get('endTime', '')
         
