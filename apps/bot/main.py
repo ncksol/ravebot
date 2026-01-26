@@ -30,6 +30,9 @@ RATE_LIMIT_WINDOW = 60  # 1 minute window
 RATE_LIMIT_MAX_REQUESTS = 3  # Max 3 requests per minute per user
 rate_limit_tracker = defaultdict(list)
 
+# Track bot start time for uptime calculation
+bot_start_time = datetime.datetime.now()
+
 async def rave_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_old_command(update, context): return    
     message = get_rave_message(context)
@@ -306,7 +309,10 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Check bot basic info
     status_message += "✅ Bot is running\n"
-    status_message += f"📅 Uptime: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+    uptime = datetime.datetime.now() - bot_start_time
+    hours, remainder = divmod(int(uptime.total_seconds()), 3600)
+    minutes, seconds = divmod(remainder, 60)
+    status_message += f"⏱️ Uptime: {hours}h {minutes}m {seconds}s\n"
     
     # Check cache status
     cache = context.chat_data.get('cache', None)
