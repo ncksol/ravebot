@@ -20,6 +20,6 @@ USER appuser
 
 # Add health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD python -c "import sys; sys.exit(0)"
+  CMD python -c "import main, settings, models; print('Health check passed')" || exit 1
 
 CMD ["python", "main.py"]
