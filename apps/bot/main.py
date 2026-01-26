@@ -196,6 +196,7 @@ async def guest_list_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=ParseMode.HTML, disable_web_page_preview=False)
 
 async def kick_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if is_old_command(update, context): return
     user_id = update.effective_user.id
     if user_id != BotConfiguration.admin_id:
         await update.effective_message.reply_text(admin_access_error_message)
