@@ -43,11 +43,11 @@ async def process_ra_event(url: str) -> Event:
         return
     
     event_id = match.group(1)
-    json = get_ra_event(event_id)
-    if json is None:        
+    event_data = get_ra_event(event_id)
+    if event_data is None:        
         return
     
-    event = Event(title=json['title'], url=url, description=json['content'], start_time=json['startTime'], end_time=json['endTime'], location=json['venue']['name'])
+    event = Event(title=event_data['title'], url=url, description=event_data['content'], start_time=event_data['startTime'], end_time=event_data['endTime'], location=event_data['venue']['name'])
     event.start_time = datetime.datetime.strptime(event.start_time, '%Y-%m-%dT%H:%M:%S.%f').strftime('%Y-%m-%dT%H:%M:%S')
     event.end_time = datetime.datetime.strptime(event.end_time, '%Y-%m-%dT%H:%M:%S.%f').strftime('%Y-%m-%dT%H:%M:%S')
     
