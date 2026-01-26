@@ -3,14 +3,14 @@ name = "ravebot"
 version = "1.0.0"
 description = "Telegram bot for managing rave events and community"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 
 [tool.ruff]
 # Set the maximum line length to 120.
 line-length = 120
 
-# Assume Python 3.8+
-target-version = "py38"
+# Assume Python 3.9+
+target-version = "py39"
 
 # Exclude common directories
 exclude = [
