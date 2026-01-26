@@ -21,7 +21,7 @@ def get_ra_event(id: str):
 
     payload["variables"]["id"] = id
 
-    response = requests.post(URL, headers=HEADERS, json=payload)
+    response = requests.post(URL, headers=HEADERS, json=payload, timeout=30)
 
     try:
         response.raise_for_status()

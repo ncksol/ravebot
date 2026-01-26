@@ -15,7 +15,7 @@ def get_dice_event_id(url) -> str:
         
         logger.info(f"Retrieving the URL: {url}")
 
-        response = urllib.request.urlopen(req)
+        response = urllib.request.urlopen(req, timeout=30)
         if response.status != 200:           
             logger.error(f"Failed to retrieve the URL. Status code: {response.status}")
             return None
@@ -51,7 +51,7 @@ async def process_dice_event(url: str) -> Event:
 
 def get_event_details(item_id: str) -> dict:
     url = f"https://api.dice.fm/events/{item_id}/ticket_types"
-    response = urllib.request.urlopen(url)
+    response = urllib.request.urlopen(url, timeout=30)
     if response.status != 200:
         return {}
     data = json.loads(response.read())    
