@@ -26,8 +26,8 @@ def get_ra_event(id: str):
     try:
         response.raise_for_status()
         data = response.json()
-    except (requests.exceptions.RequestException, ValueError):
-        logger.error(f"Error: {response.status_code}")
+    except (requests.exceptions.RequestException, ValueError) as e:
+        logger.error(f"Error fetching RA event: {e}")
         return None
 
     if 'data' not in data:
