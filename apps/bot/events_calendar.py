@@ -88,13 +88,3 @@ def create_calendar_event(event: Event) -> bool:
 
 def get_calendar_link():
     return CalendarConfiguration.reader_url
-
-def extract_first_8_words(s):
-    # Split the string into words
-    words = s.split()
-
-    # Take the first 8 words
-    first_8_words = words[:8]
-
-    # Join the words back into a string
-    return ' '.join(first_8_words)
