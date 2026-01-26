@@ -1,5 +1,6 @@
 import datetime
 from collections import defaultdict
+import threading
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import BadRequest
@@ -29,9 +30,10 @@ if ErrorReportingConfiguration.sentry_dsn:
 RATE_LIMIT_WINDOW = 60  # 1 minute window
 RATE_LIMIT_MAX_REQUESTS = 3  # Max 3 requests per minute per user
 rate_limit_tracker = defaultdict(list)
+rate_limit_lock = threading.Lock()  # Thread-safe lock for rate limiting
 
 # Track bot start time for uptime calculation
-bot_start_time = datetime.datetime.now()
+bot_start_time = datetime.datetime.now(datetime.timezone.utc)
 
 async def rave_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_old_command(update, context): return    
@@ -123,21 +125,22 @@ async def unset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.effective_message.reply_text(text)
 
 def is_rate_limited(user_id: int) -> bool:
-    """Check if user is rate limited for createevent command."""
-    current_time = datetime.datetime.now()
-    user_requests = rate_limit_tracker[user_id]
-    
-    # Remove requests outside the time window
-    user_requests[:] = [req_time for req_time in user_requests 
-                       if (current_time - req_time).total_seconds() < RATE_LIMIT_WINDOW]
-    
-    # Check if user has exceeded the limit
-    if len(user_requests) >= RATE_LIMIT_MAX_REQUESTS:
-        return True
-    
-    # Add current request
-    user_requests.append(current_time)
-    return False
+    """Check if user is rate limited for createevent command. Thread-safe."""
+    with rate_limit_lock:
+        current_time = datetime.datetime.now(datetime.timezone.utc)
+        user_requests = rate_limit_tracker[user_id]
+        
+        # Remove requests outside the time window
+        user_requests[:] = [req_time for req_time in user_requests 
+                           if (current_time - req_time).total_seconds() < RATE_LIMIT_WINDOW]
+        
+        # Check if user has exceeded the limit
+        if len(user_requests) >= RATE_LIMIT_MAX_REQUESTS:
+            return True
+        
+        # Add current request
+        user_requests.append(current_time)
+        return False
 
 async def create_event_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_old_command(update, context): return
@@ -309,7 +312,7 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Check bot basic info
     status_message += "✅ Bot is running\n"
-    uptime = datetime.datetime.now() - bot_start_time
+    uptime = datetime.datetime.now(datetime.timezone.utc) - bot_start_time
     hours, remainder = divmod(int(uptime.total_seconds()), 3600)
     minutes, seconds = divmod(remainder, 60)
     status_message += f"⏱️ Uptime: {hours}h {minutes}m {seconds}s\n"
@@ -332,9 +335,15 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     active_users = len([k for k, v in rate_limit_tracker.items() if v])
     status_message += f"⏱️ Rate limiting: Active ({active_users} users tracked)\n"
     
-    # Check scheduled jobs
-    jobs = context.job_queue.jobs()
-    status_message += f"⚙️ Scheduled jobs: {len(jobs)}\n"
+    # Check scheduled jobs - count all jobs in the job queue
+    try:
+        # Try to get all jobs (works in most versions)
+        all_jobs = context.job_queue.jobs()
+        job_count = len(all_jobs) if all_jobs else 0
+    except AttributeError:
+        # Fallback for older versions
+        job_count = "N/A"
+    status_message += f"⚙️ Scheduled jobs: {job_count}\n"
     
     await update.effective_message.reply_html(status_message)
 
