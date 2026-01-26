@@ -147,9 +147,12 @@ class TestIsOldCommand:
 
 class TestCommandHandlers:
     @pytest.mark.asyncio
-    async def test_rave_command_basic(self):
+    @patch('main.get_events')
+    async def test_rave_command_basic(self, mock_get_events):
         """Test basic rave command execution"""
         from main import rave_command
+        
+        mock_get_events.return_value = []
         
         update = MagicMock()
         update.message.date = datetime.datetime.now(datetime.timezone.utc)

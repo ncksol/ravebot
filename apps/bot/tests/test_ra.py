@@ -34,9 +34,11 @@ class TestGetRaEvent:
     @patch('ra.requests.post')
     def test_get_ra_event_http_error(self, mock_post, mock_file):
         """Test RA event retrieval with HTTP error"""
+        import requests
+        
         mock_response = MagicMock()
         mock_response.status_code = 404
-        mock_response.raise_for_status.side_effect = Exception("Not found")
+        mock_response.raise_for_status.side_effect = requests.exceptions.RequestException("Not found")
         mock_post.return_value = mock_response
         
         result = get_ra_event("12345")
