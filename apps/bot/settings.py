@@ -35,3 +35,11 @@ class CalendarConfiguration:
         subcalendar_id = config_env["TEAMUP_SUBCALENDAR_ID"]
     api_url = f"https://api.teamup.com/{calendar_key}"
     reader_url = f"https://teamup.com/{calendar_reader_key}"
+    timezone = config_env.get("CALENDAR_TIMEZONE", "Europe/London")
+
+class ErrorReportingConfiguration:
+    sentry_dsn = config_env.get("SENTRY_DSN", None)
+    environment = config_env.get("ENVIRONMENT", "development")
+
+class LoggingConfiguration:
+    json_format = config_env.get("LOG_JSON_FORMAT", "false").lower() == "true"

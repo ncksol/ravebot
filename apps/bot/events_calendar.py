@@ -105,7 +105,7 @@ def create_calendar_event(event: Event) -> bool:
         ],
         "start_dt": f"{event.start_time}",
         "end_dt": f"{event.end_time}",
-        "tz" : "Europe/London",
+        "tz" : CalendarConfiguration.timezone,
         "notes": f"{cut_string(event.description, 65535)}",
         "title": f"{cut_string(event.title, 255)}",
         "location": f"{cut_string(event.location, 255)}",
