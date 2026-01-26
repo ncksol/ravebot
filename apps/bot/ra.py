@@ -27,14 +27,14 @@ def get_ra_event(id: str):
         response.raise_for_status()
         data = response.json()
     except requests.exceptions.RequestException as e:
-        logger.error(f"Request error: {e}")
+        logger.error(f"Request error for event ID {id}: {e}")
         return None
     except ValueError as e:
-        logger.error(f"JSON parsing error: {e}")
+        logger.error(f"JSON parsing error for event ID {id}: {e}")
         return None
 
     if 'data' not in data:
-        logger.error(f"Error: {data}")
+        logger.error(f"Missing 'data' field in response for event ID {id}: {data}")
         return None
     
     return data["data"]["event"]
