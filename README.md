@@ -21,7 +21,7 @@ The project consists of two main components:
 
 ### Prerequisites
 
-- Python 3.8 or higher
+- Python 3.9 or higher
 - PostgreSQL database
 - Telegram Bot Token (from [@BotFather](https://t.me/BotFather))
 - TeamUp Calendar API credentials
@@ -36,19 +36,19 @@ The project consists of two main components:
    ```
 
 2. **Install dependencies**
-   
+
    For the bot:
    ```bash
    cd apps/bot
    pip install -r requirements.txt
    ```
-   
+
    For the updater:
    ```bash
    cd apps/updater
    pip install -r requirements.txt
    ```
-   
+
    For development tools (linting, type checking):
    ```bash
    cd ../..  # back to root
@@ -56,32 +56,32 @@ The project consists of two main components:
    ```
 
 3. **Set up environment variables**
-   
+
    Create a `.env` file in the root directory or in each app directory:
-   
+
    ```env
    # Database Configuration
    DATABASE_URL=postgresql://user:password@localhost:5432/ravebot
-   
+
    # Bot Configuration
    BOT_TOKEN=your_telegram_bot_token_here
    ADMIN_ID=your_telegram_user_id
-   
+
    # TeamUp Calendar Configuration
    TEAMUP_API_KEY=your_teamup_api_key
    TEAMUP_CALENDAR_KEY=your_calendar_key
    TEAMUP_CALENDAR_READER_KEY=your_reader_key
    TEAMUP_SUBCALENDAR_ID=your_subcalendar_id
-   
+
    # RA (Resident Advisor) Configuration
    RA_QUERY_TEMPLATE_PATH=graphql_query_template.json
-   
+
    # TimeTree Configuration (for updater service)
    TIMETREE_API_KEY=your_timetree_api_key
    ```
 
 4. **Set up the database**
-   
+
    The bot uses PostgreSQL. Ensure your database is running and the `DATABASE_URL` is correctly configured.
 
 5. **Run the bot locally**
