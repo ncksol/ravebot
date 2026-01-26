@@ -25,8 +25,11 @@ def get_ra_event(id: str):
         response = requests.post(URL, headers=HEADERS, json=payload, timeout=30)
         response.raise_for_status()
         data = response.json()
-    except (requests.exceptions.RequestException, ValueError) as e:
+    except requests.exceptions.RequestException as e:
         logger.error(f"Error fetching RA event: {e}")
+        return None
+    except ValueError as e:
+        logger.error(f"Error parsing response JSON: {e}")
         return None
 
     if 'data' not in data:
