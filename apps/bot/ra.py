@@ -28,14 +28,14 @@ def get_ra_event(id: str):
         data = response.json()
     except requests.exceptions.RequestException as e:
         logger.error(f"Request error: {e}")
-        return []
+        return None
     except ValueError as e:
         logger.error(f"JSON parsing error: {e}")
-        return []
+        return None
 
     if 'data' not in data:
         logger.error(f"Error: {data}")
-        return []
+        return None
     
     return data["data"]["event"]
 
