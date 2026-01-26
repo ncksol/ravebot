@@ -29,7 +29,7 @@ def get_mention(user_id: int, name: str) -> str:
 def format_event_date(date: str, format: str) -> str:
     return datetime.datetime.strptime(date, format).strftime('%Y-%m-%dT%H:%M:%S')
 
-def validate_and_sanitize_url(url: str, allowed_domains: list) -> tuple:
+def validate_and_sanitize_url(url: str, allowed_domains: list) -> tuple[bool, str | None, str | None, str | None]:
     """
     Validates and sanitizes a URL for security.
     
@@ -84,6 +84,8 @@ def validate_and_sanitize_url(url: str, allowed_domains: list) -> tuple:
         
         return (True, sanitized_url, None, hostname)
         
-    except Exception as e:
+    except (ValueError, AttributeError) as e:
+        # ValueError: from urlparse if URL is malformed
+        # AttributeError: if parsed components are not as expected
         logger.error(f"URL validation error: {e}")
         return (False, None, "Malformed URL", None)
