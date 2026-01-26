@@ -27,3 +27,8 @@ def get_mention(user_id: int, name: str) -> str:
 
 def format_event_date(date: str, format: str) -> str:
     return datetime.datetime.strptime(date, format).strftime('%Y-%m-%dT%H:%M:%S')
+
+def is_admin(user_id: int) -> bool:
+    """Check if user_id is in the list of admin IDs."""
+    from settings import BotConfiguration
+    return user_id in BotConfiguration.admin_ids

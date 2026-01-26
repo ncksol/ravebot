@@ -15,7 +15,18 @@ class RAConfiguration:
 
 class BotConfiguration:
     token = config_env["BOT_TOKEN"]
-    admin_id = int(config_env["ADMIN_ID"])
+    # Support both ADMIN_IDS (comma-separated) and legacy ADMIN_ID (single)
+    admin_ids = []
+    if "ADMIN_IDS" in config_env:
+        admin_ids = [int(id.strip()) for id in config_env["ADMIN_IDS"].split(",") if id.strip()]
+    elif "ADMIN_ID" in config_env:
+        admin_ids = [int(config_env["ADMIN_ID"])]
+    
+    # Backward compatibility
+    admin_id = admin_ids[0] if admin_ids else None
+    
+    # Language configuration (default to Russian for backward compatibility)
+    language = config_env.get("LANGUAGE", "ru")
 
 class CalendarConfiguration:        
     api_key = config_env["TEAMUP_API_KEY"]

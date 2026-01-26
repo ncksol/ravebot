@@ -12,7 +12,7 @@ from dice import process_dice_event
 from models import Cache
 from settings import BotConfiguration
 from events_calendar import get_calendar_link, get_events, create_calendar_event, search_event
-from utils import get_name, get_mention, logger
+from utils import get_name, get_mention, is_admin, logger
 from text import welcome_message, success_message, help_message, warn_message, kick_message, no_event_url_message, unsupported_event_url_message, event_created_message, event_creation_error_message, admin_access_error_message, queue_user_not_found_message, guest_list_success_message, kick_message, upcoming_events_header, no_upcoming_events_message, duplicate_event_message, duplicate_event_question_message, duplicate_event_create_button_text, duplicate_event_skip_button_text
 
 async def rave_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -79,7 +79,7 @@ async def whois_reply_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def set_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_old_command(update, context): return    
     user_id = update.effective_user.id
-    if user_id != BotConfiguration.admin_id:
+    if not is_admin(user_id):
         await update.effective_message.reply_text(admin_access_error_message)
         return
 
@@ -95,7 +95,7 @@ async def set_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def unset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):    
     if is_old_command(update, context): return
     user_id = update.effective_user.id
-    if user_id != BotConfiguration.admin_id:
+    if not is_admin(user_id):
         await update.effective_message.reply_text(admin_access_error_message)
         return
     
@@ -174,7 +174,7 @@ async def button_click_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 async def guest_list_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_old_command(update, context): return
     user_id = update.effective_user.id
-    if user_id != BotConfiguration.admin_id:
+    if not is_admin(user_id):
         await update.effective_message.reply_text(admin_access_error_message)
         return
 
@@ -197,7 +197,7 @@ async def guest_list_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 async def kick_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    if user_id != BotConfiguration.admin_id:
+    if not is_admin(user_id):
         await update.effective_message.reply_text(admin_access_error_message)
         return
 
