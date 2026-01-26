@@ -1,0 +1,8 @@
+# Development dependencies for code quality and tooling
+ruff>=0.1.0
+mypy>=1.0.0
+pre-commit>=3.0.0
+
+# Type stubs for libraries
+types-requests
+types-python-dateutil
