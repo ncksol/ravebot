@@ -331,8 +331,8 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         status_message += "⚠️ Error reporting: Disabled\n"
     
-    # Check rate limiting
-    active_users = len([k for k, v in rate_limit_tracker.items() if v])
+    # Check rate limiting - use generator expression for efficiency
+    active_users = sum(1 for v in rate_limit_tracker.values() if v)
     status_message += f"⏱️ Rate limiting: Active ({active_users} users tracked)\n"
     
     # Check scheduled jobs - count all jobs in the job queue
@@ -341,9 +341,13 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         all_jobs = context.job_queue.jobs()
         job_count = len(all_jobs) if all_jobs else 0
     except AttributeError:
-        # Fallback for older versions
-        job_count = "N/A"
-    status_message += f"⚙️ Scheduled jobs: {job_count}\n"
+        # Fallback for older versions - use -1 to indicate unavailable
+        job_count = -1
+    
+    if job_count >= 0:
+        status_message += f"⚙️ Scheduled jobs: {job_count}\n"
+    else:
+        status_message += "⚙️ Scheduled jobs: N/A\n"
     
     await update.effective_message.reply_html(status_message)
 
