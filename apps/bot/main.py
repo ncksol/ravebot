@@ -13,7 +13,7 @@ from models import Cache
 from settings import BotConfiguration
 from events_calendar import get_calendar_link, get_events, create_calendar_event, search_event
 from utils import get_name, get_mention, is_admin, logger
-from text import welcome_message, success_message, help_message, warn_message, kick_message, no_event_url_message, unsupported_event_url_message, event_created_message, event_creation_error_message, admin_access_error_message, queue_user_not_found_message, guest_list_success_message, kick_message, upcoming_events_header, no_upcoming_events_message, duplicate_event_message, duplicate_event_question_message, duplicate_event_create_button_text, duplicate_event_skip_button_text
+from text import welcome_message, success_message, help_message, warn_message, kick_message, no_event_url_message, unsupported_event_url_message, event_created_message, event_creation_error_message, admin_access_error_message, queue_user_not_found_message, guest_list_success_message, upcoming_events_header, no_upcoming_events_message, duplicate_event_message, duplicate_event_question_message, duplicate_event_create_button_text, duplicate_event_skip_button_text
 
 async def rave_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_old_command(update, context): return    
