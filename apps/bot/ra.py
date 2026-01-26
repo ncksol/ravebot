@@ -15,6 +15,14 @@ HEADERS = {
 }
 
 def get_ra_event(id: str) -> Optional[dict]:
+    """Fetch event details from Resident Advisor (RA) GraphQL API.
+    
+    Args:
+        id: The event ID on RA platform
+        
+    Returns:
+        Event data as a dictionary if successful, None otherwise
+    """
     with open(RAConfiguration.query_template_path, "r") as file:
             payload = json.load(file)
 
@@ -37,6 +45,14 @@ def get_ra_event(id: str) -> Optional[dict]:
 
 
 def process_ra_event(url: str) -> Optional[Event]:
+    """Process a Resident Advisor event URL and create an Event object.
+    
+    Args:
+        url: The RA event URL (e.g., https://ra.co/events/12345)
+        
+    Returns:
+        Event object with parsed event details if successful, None otherwise
+    """
     pattern = r'https://ra.co/events/(\d+)'
     match = re.match(pattern, url)
     if match is None:        

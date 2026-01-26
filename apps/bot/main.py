@@ -21,20 +21,24 @@ UPDATE_INTERVAL_SECONDS = 1 * 60 * 60  # 1 hour
 WARNING_TIMEOUT_SECONDS = 30 * 60  # 30 minutes
 
 async def rave_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /rave command - display upcoming rave events."""
     if is_old_command(update, context): return    
     message = get_rave_message(context)
     await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
 
 async def update_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /update command - manually update the events cache and announcement."""
     if is_old_command(update, context): return
     update_cache(context)
     await update_announcement(context, update.effective_chat.id)
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /help command - display help message."""
     if is_old_command(update, context): return
     await context.bot.send_message(chat_id=update.effective_chat.id, text=help_message)
 
 async def member_left_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle member leaving the chat - cleanup timers and messages."""
     member = update.effective_message.left_chat_member
     if member.is_bot:
         return
@@ -49,6 +53,7 @@ async def member_left_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         await clean_up_warn_message(context, update.effective_chat.id, user_id)    
 
 async def new_member_welcome_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle new members joining - send welcome message and start intro timer."""
     for member in update.effective_message.new_chat_members:
         if member.is_bot:
             return
@@ -69,6 +74,7 @@ async def new_member_welcome_command(update: Update, context: ContextTypes.DEFAU
         context.chat_data[f'@{member.username}'] = member.id
 
 async def whois_reply_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle #whois message - verify new member introduction and cancel kick timer."""
     is_new_member = context.user_data.pop('new_member', False)
     if is_new_member == False:
         return
@@ -82,6 +88,7 @@ async def whois_reply_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.effective_message.reply_html(message)
 
 async def set_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /set command (admin only) - start automatic event updates timer."""
     if is_old_command(update, context): return    
     user_id = update.effective_user.id
     if user_id != BotConfiguration.admin_id:
@@ -97,7 +104,8 @@ async def set_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         text += " Old one was removed."
     await update.effective_message.reply_text(text)
 
-async def unset_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:    
+async def unset_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /unset command (admin only) - stop automatic event updates timer."""    
     if is_old_command(update, context): return
     user_id = update.effective_user.id
     if user_id != BotConfiguration.admin_id:
@@ -110,6 +118,7 @@ async def unset_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     await update.effective_message.reply_text(text)
 
 async def create_event_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /createevent command - create calendar event from RA or Dice URL."""
     if is_old_command(update, context): return
 
     mentions = update.effective_message.parse_entities(MessageEntityType.URL)
@@ -156,6 +165,7 @@ async def create_event_command(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.effective_message.reply_text(event_creation_error_message)
 
 async def button_click_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle inline button clicks for duplicate event confirmation."""
     query = update.callback_query
     await query.answer()
     if query.data == "duplicate_event_skip":
@@ -175,6 +185,7 @@ async def button_click_handler(update: Update, context: ContextTypes.DEFAULT_TYP
             await query.edit_message_text(text=event_creation_error_message)
 
 async def guest_list_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /guestlist command (admin only) - approve a user and cancel their kick timer."""
     if is_old_command(update, context): return
     user_id = update.effective_user.id
     if user_id != BotConfiguration.admin_id:
@@ -199,6 +210,7 @@ async def guest_list_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=ParseMode.HTML, disable_web_page_preview=False)
 
 async def kick_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /kick command (admin only) - immediately kick a user from the chat."""
     user_id = update.effective_user.id
     if user_id != BotConfiguration.admin_id:
         await update.effective_message.reply_text(admin_access_error_message)
@@ -227,12 +239,22 @@ async def kick_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await context.bot.ban_chat_member(chat_id=context.job.chat_id, user_id=user_id, until_date=until_date)
 
 async def calendar_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /calendar command - display link to events calendar."""
     if is_old_command(update, context): return    
     message = get_calendar_link()
     await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
 
 
-def remove_job_if_exists(name: str, context: ContextTypes.DEFAULT_TYPE) -> bool:    
+def remove_job_if_exists(name: str, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    """Remove scheduled job(s) by name.
+    
+    Args:
+        name: Job name to search for
+        context: Bot context containing job queue
+        
+    Returns:
+        True if jobs were found and removed, False otherwise
+    """    
     current_jobs = context.job_queue.get_jobs_by_name(name)
     if not current_jobs:
         return False
@@ -241,11 +263,18 @@ def remove_job_if_exists(name: str, context: ContextTypes.DEFAULT_TYPE) -> bool:
     return True
 
 async def update_announcement_timer(context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Scheduled callback to update the pinned events announcement."""
     logger.info("Running scheduled announcement update...")
     job = context.job
     await update_announcement(context, job.chat_id)
 
 async def update_announcement(context: ContextTypes.DEFAULT_TYPE, chat_id: int) -> None:
+    """Update or create the pinned events announcement message.
+    
+    Args:
+        context: Bot context
+        chat_id: Chat ID where announcement should be posted/updated
+    """
     announcement_id = None
     if 'announcement_id' in context.chat_data and context.chat_data["announcement_id"] is not None:
         announcement_id = int(context.chat_data["announcement_id"])
@@ -270,6 +299,14 @@ async def update_announcement(context: ContextTypes.DEFAULT_TYPE, chat_id: int) 
         context.chat_data["announcement_id"] = msg_object.message_id
 
 def get_rave_message(context: ContextTypes.DEFAULT_TYPE) -> str:
+    """Get formatted message with upcoming rave events.
+    
+    Args:
+        context: Bot context containing cached events
+        
+    Returns:
+        Formatted HTML message with event list
+    """
     cache = context.chat_data.get('cache', Cache(datetime.datetime.now(), []))    
     if not cache.events or len(cache.events) == 0 or (datetime.datetime.now().date() - cache.last_update.date()).days >= 1:
         update_cache(context)
@@ -284,6 +321,7 @@ def get_rave_message(context: ContextTypes.DEFAULT_TYPE) -> str:
     return message
 
 def update_cache(context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Refresh the events cache from the calendar."""
     events = get_events()
     cache = context.chat_data.get('cache', Cache(datetime.datetime.now(), []))    
     cache.update(events)
@@ -291,6 +329,7 @@ def update_cache(context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.info("Cache updated")
 
 async def warn_idle(context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Send warning message to idle new member and schedule kick."""
     user_id = context.job.user_id
     username = context.chat_data.get(str(user_id), None)
     mention = get_mention(user_id, username)
@@ -303,6 +342,7 @@ async def warn_idle(context: ContextTypes.DEFAULT_TYPE) -> None:
     context.job_queue.run_once(kick_idle, when=WARNING_TIMEOUT_SECONDS, chat_id=context.job.chat_id, user_id=user_id, name=str(user_id))
 
 async def kick_idle(context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Kick idle member who didn't introduce themselves."""
     user_id = context.job.user_id
     username = context.chat_data.pop(str(user_id), None)
     mention = get_mention(user_id, username)
@@ -317,6 +357,13 @@ async def kick_idle(context: ContextTypes.DEFAULT_TYPE) -> None:
     await clean_up_warn_message(context, context.job.chat_id, user_id)
 
 async def clean_up_welcome_message(context: ContextTypes.DEFAULT_TYPE, chat_id: int, user_id: int) -> None:
+    """Delete the welcome message for a specific user.
+    
+    Args:
+        context: Bot context
+        chat_id: Chat ID where message was sent
+        user_id: User ID to clean up messages for
+    """
     welcome_msg_id = context.chat_data.pop('welcome_' + str(user_id), None)
     if welcome_msg_id is not None:
         await context.bot.delete_message(chat_id=chat_id, message_id=welcome_msg_id)
@@ -324,6 +371,13 @@ async def clean_up_welcome_message(context: ContextTypes.DEFAULT_TYPE, chat_id: 
         logger.warning(f"Welcome message for user {user_id} not found.")
 
 async def clean_up_warn_message(context: ContextTypes.DEFAULT_TYPE, chat_id: int, user_id: int) -> None:
+    """Delete the warning message for a specific user.
+    
+    Args:
+        context: Bot context
+        chat_id: Chat ID where message was sent
+        user_id: User ID to clean up messages for
+    """
     warn_msg_id = context.chat_data.pop('warn_' + str(user_id), None)
     if warn_msg_id is not None:
         await context.bot.delete_message(chat_id=chat_id, message_id=warn_msg_id)
@@ -331,6 +385,15 @@ async def clean_up_warn_message(context: ContextTypes.DEFAULT_TYPE, chat_id: int
         logger.warning(f"Warn message for user {user_id} not found.")
 
 def is_old_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    """Check if command is older than 60 seconds.
+    
+    Args:
+        update: Telegram update object
+        context: Bot context
+        
+    Returns:
+        True if command is older than 60 seconds, False otherwise
+    """
     difference = abs(update.message.date - datetime.datetime.now(update.message.date.tzinfo))
     return difference.total_seconds() > 60
 

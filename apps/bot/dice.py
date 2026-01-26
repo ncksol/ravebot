@@ -8,6 +8,14 @@ from models import Event
 
 
 def get_dice_event_id(url: str) -> Optional[str]:
+    """Extract event ID from a Dice.fm URL by parsing the HTML meta tags.
+    
+    Args:
+        url: The Dice.fm event URL
+        
+    Returns:
+        Event ID string if found in meta tags, None otherwise
+    """
     try:
         req = urllib.request.Request(url)
         req.add_header('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:106.0) Gecko/20100101 Firefox/106.0')
@@ -38,6 +46,14 @@ def get_dice_event_id(url: str) -> Optional[str]:
         logger.error(f"An error occurred: {e}")
 
 def process_dice_event(url: str) -> Optional[Event]:
+    """Process a Dice.fm event URL and create an Event object.
+    
+    Args:
+        url: The Dice.fm event URL
+        
+    Returns:
+        Event object with parsed event details if successful, None otherwise
+    """
     event_id = get_dice_event_id(url)
     if event_id is None:        
         return
@@ -51,6 +67,14 @@ def process_dice_event(url: str) -> Optional[Event]:
     return event
 
 def get_event_details(item_id: str) -> dict:
+    """Fetch event details from Dice.fm API.
+    
+    Args:
+        item_id: The event ID on Dice.fm platform
+        
+    Returns:
+        Dictionary containing event details (description, dates, venue)
+    """
     url = f"https://api.dice.fm/events/{item_id}/ticket_types"
     response = urllib.request.urlopen(url)
     if response.status != 200:
