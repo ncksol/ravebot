@@ -12,3 +12,4 @@ class DatabaseConfiguration:
 
 class TimeTreeConfiguration:    
     key = config_env["TIMETREE_API_KEY"]
+    calendar_id = config_env["TIMETREE_CALENDAR_ID"]

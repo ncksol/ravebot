@@ -14,7 +14,8 @@ logging.basicConfig(
 
 def get_events() -> "list[Event]":
     api_key = TimeTreeConfiguration.key
-    api_url = 'https://timetreeapis.com/calendars/UT75VvR4kQ4t/upcoming_events?days=7'
+    calendar_id = TimeTreeConfiguration.calendar_id
+    api_url = f'https://timetreeapis.com/calendars/{calendar_id}/upcoming_events?days=7'
     headers = {'Authorization': 'Bearer ' + api_key}
     r = requests.get(api_url, headers=headers)
     json = r.json()
