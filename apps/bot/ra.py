@@ -1,4 +1,8 @@
-import requests, json, re, datetime
+import requests
+import json
+import re
+import datetime
+from typing import Optional
 
 from models import Event
 from settings import RAConfiguration
@@ -10,7 +14,7 @@ HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:106.0) Gecko/20100101 Firefox/106.0'
 }
 
-def get_ra_event(id: str):
+def get_ra_event(id: str) -> Optional[dict]:
     with open(RAConfiguration.query_template_path, "r") as file:
             payload = json.load(file)
 
@@ -32,7 +36,7 @@ def get_ra_event(id: str):
     return data["data"]["event"]
 
 
-def process_ra_event(url: str) -> Event:
+def process_ra_event(url: str) -> Optional[Event]:
     pattern = r'https://ra.co/events/(\d+)'
     match = re.match(pattern, url)
     if match is None:        

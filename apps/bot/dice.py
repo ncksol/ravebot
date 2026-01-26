@@ -1,12 +1,13 @@
 import urllib.request
 import json
+from typing import Optional
 from bs4 import BeautifulSoup
 
 from utils import logger, format_event_date
 from models import Event
 
 
-def get_dice_event_id(url) -> str:
+def get_dice_event_id(url: str) -> Optional[str]:
     try:
         req = urllib.request.Request(url)
         req.add_header('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:106.0) Gecko/20100101 Firefox/106.0')
@@ -36,7 +37,7 @@ def get_dice_event_id(url) -> str:
     except Exception as e:
         logger.error(f"An error occurred: {e}")
 
-def process_dice_event(url: str) -> Event:
+def process_dice_event(url: str) -> Optional[Event]:
     event_id = get_dice_event_id(url)
     if event_id is None:        
         return
