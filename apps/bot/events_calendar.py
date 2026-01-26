@@ -33,7 +33,7 @@ def get_events() -> "list[Event]":
             end_time_no_tz = parser.parse(data['end_dt']).replace(tzinfo=None).strftime("%Y-%m-%dT%H:%M:%S")
             custom_data = data.get('custom', {})
             url = custom_data.get('url', '')
-            event = Event(event_id=data['id'], title=data['title'], start_time=start_time_no_tz, end_time=end_time_no_tz, 
+            event = Event(event_id=data.get('id', ''), title=data.get('title', ''), start_time=start_time_no_tz, end_time=end_time_no_tz, 
                           location=data.get('location', ''), url=url, description=data.get('notes', ''))
             events.append(event)
         except (KeyError, ValueError) as e:
@@ -70,7 +70,7 @@ def search_event(event: Event) -> str:
         try:
             custom_data = data.get('custom', {})
             url = custom_data.get('url', '')
-            event = Event(event_id=data['id'], title=data['title'], start_time=data['start_dt'], end_time=data['end_dt'], 
+            event = Event(event_id=data.get('id', ''), title=data.get('title', ''), start_time=data.get('start_dt', ''), end_time=data.get('end_dt', ''), 
                           location=data.get('location', ''), url=url, description=data.get('notes', ''))
             events.append(event)
         except (KeyError, ValueError) as e:
