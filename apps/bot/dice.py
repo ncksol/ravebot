@@ -36,7 +36,7 @@ def get_dice_event_id(url) -> str:
     except Exception as e:
         logger.error(f"An error occurred: {e}")
 
-async def process_dice_event(url: str) -> Event:
+def process_dice_event(url: str) -> Event:
     event_id = get_dice_event_id(url)
     if event_id is None:        
         return

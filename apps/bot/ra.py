@@ -1,4 +1,4 @@
-import requests, json, re, datetime, os
+import requests, json, re, datetime
 
 from models import Event
 from settings import RAConfiguration
@@ -9,10 +9,6 @@ HEADERS = {
     'Referrer': 'https://ra.co/events/uk/london',
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:106.0) Gecko/20100101 Firefox/106.0'
 }
-
-#QUERY_TEMPLATE_PATH = "apps/bot/graphql_query_template.json"
-#QUERY_TEMPLATE_PATH = "graphql_query_template.json"
-#QUERY_TEMPLATE_PATH = os.getenv("GRAPHQL_QUERY_TEMPLATE_PATH")
 
 def get_ra_event(id: str):
     with open(RAConfiguration.query_template_path, "r") as file:
@@ -36,7 +32,7 @@ def get_ra_event(id: str):
     return data["data"]["event"]
 
 
-async def process_ra_event(url: str) -> Event:
+def process_ra_event(url: str) -> Event:
     pattern = r'https://ra.co/events/(\d+)'
     match = re.match(pattern, url)
     if match is None:        

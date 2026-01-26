@@ -15,6 +15,11 @@ from events_calendar import get_calendar_link, get_events, create_calendar_event
 from utils import get_name, get_mention, logger
 from text import welcome_message, success_message, help_message, warn_message, kick_message, no_event_url_message, unsupported_event_url_message, event_created_message, event_creation_error_message, admin_access_error_message, queue_user_not_found_message, guest_list_success_message, kick_message, upcoming_events_header, no_upcoming_events_message, duplicate_event_message, duplicate_event_question_message, duplicate_event_create_button_text, duplicate_event_skip_button_text
 
+# Timeout constants (in seconds)
+INTRO_TIMEOUT_SECONDS = 90 * 60  # 90 minutes
+UPDATE_INTERVAL_SECONDS = 1 * 60 * 60  # 1 hour
+WARNING_TIMEOUT_SECONDS = 30 * 60  # 30 minutes
+
 async def rave_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_old_command(update, context): return    
     message = get_rave_message(context)
@@ -59,7 +64,7 @@ async def new_member_welcome_command(update: Update, context: ContextTypes.DEFAU
         context.chat_data['welcome_' + str(member.id)] = welcome_msg.message_id
 
         remove_job_if_exists(str(member.id), context)
-        context.job_queue.run_once(warn_idle, when=90*60, chat_id=update.effective_chat.id, user_id=member.id, name=str(member.id))
+        context.job_queue.run_once(warn_idle, when=INTRO_TIMEOUT_SECONDS, chat_id=update.effective_chat.id, user_id=member.id, name=str(member.id))
         context.chat_data[str(member.id)] = name
         context.chat_data[f'@{member.username}'] = member.id
 
@@ -68,7 +73,7 @@ async def whois_reply_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     if is_new_member == False:
         return
     
-    member_id = context._user_id
+    member_id = update.effective_user.id
 
     success = remove_job_if_exists(str(member_id), context)
     if success:
@@ -85,7 +90,7 @@ async def set_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     chat_id = update.effective_message.chat_id
     job_removed = remove_job_if_exists(f"update_{chat_id}", context)    
-    context.job_queue.run_repeating(update_announcement_timer, interval=1*60*60, first=60, chat_id=chat_id, name=str(chat_id))
+    context.job_queue.run_repeating(update_announcement_timer, interval=UPDATE_INTERVAL_SECONDS, first=60, chat_id=chat_id, name=str(chat_id))
     
     text = "Update timer successfully set!"
     if job_removed:
@@ -109,22 +114,20 @@ async def create_event_command(update: Update, context: ContextTypes.DEFAULT_TYP
 
     mentions = update.effective_message.parse_entities(MessageEntityType.URL)
     if len(list(mentions.values())) == 0:
-        #await update.effective_message.reply_text(no_event_url_message)
         return
     
     url = next(iter(mentions.values()))
 
     if url is None:
-        #await update.effective_message.reply_text(no_event_url_message)
         return
     
     event = None
     parsed_url = urlparse(url)
     domain = parsed_url.netloc
     if domain == "ra.co":
-        event = await process_ra_event(url)        
+        event = process_ra_event(url)        
     elif domain == "dice.fm":
-        event = await process_dice_event(url)
+        event = process_dice_event(url)
     else:
         await update.effective_message.reply_text(unsupported_event_url_message)
         return
@@ -297,7 +300,7 @@ async def warn_idle(context: ContextTypes.DEFAULT_TYPE):
 
     context.chat_data['warn_' + str(user_id)] = warn_msg.message_id
 
-    context.job_queue.run_once(kick_idle, when=30*60, chat_id=context.job.chat_id, user_id=user_id, name=str(user_id))
+    context.job_queue.run_once(kick_idle, when=WARNING_TIMEOUT_SECONDS, chat_id=context.job.chat_id, user_id=user_id, name=str(user_id))
 
 async def kick_idle(context: ContextTypes.DEFAULT_TYPE):
     user_id = context.job.user_id
@@ -339,8 +342,8 @@ if __name__ == '__main__':
     rave_handler = CommandHandler('rave', rave_command)
     application.add_handler(rave_handler)
 
-    update_hander = CommandHandler('update', update_command)
-    application.add_handler(update_hander)
+    update_handler = CommandHandler('update', update_command)
+    application.add_handler(update_handler)
 
     help_handler = CommandHandler('help', help_command)
     application.add_handler(help_handler)
