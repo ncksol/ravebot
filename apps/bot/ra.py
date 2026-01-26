@@ -2,6 +2,7 @@ import requests, json, re, datetime, os
 
 from models import Event
 from settings import RAConfiguration
+from utils import logger
 
 URL = 'https://ra.co/graphql'
 HEADERS = {
@@ -26,12 +27,12 @@ def get_ra_event(id: str):
         response.raise_for_status()
         data = response.json()
     except (requests.exceptions.RequestException, ValueError):
-        print(f"Error: {response.status_code}")
-        return []
+        logger.error(f"Error: {response.status_code}")
+        return None
 
     if 'data' not in data:
-        print(f"Error: {data}")
-        return []
+        logger.error(f"Error: {data}")
+        return None
     
     return data["data"]["event"]
 
