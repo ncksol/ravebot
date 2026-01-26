@@ -16,7 +16,7 @@ class RAConfiguration:
 class BotConfiguration:
     # Use dev credentials if in dev environment, otherwise use prod
     if ENVIRONMENT == "dev":
-        token = config_env.get("BOT_TOKEN_DEV", config_env.get("BOT_TOKEN", ""))
+        token = config_env.get("BOT_TOKEN_DEV") or config_env["BOT_TOKEN"]
     else:
         token = config_env["BOT_TOKEN"]
     admin_id = int(config_env["ADMIN_ID"])
@@ -24,10 +24,10 @@ class BotConfiguration:
 class CalendarConfiguration:
     # Use dev credentials if in dev environment, otherwise use prod
     if ENVIRONMENT == "dev":
-        api_key = config_env.get("TEAMUP_API_KEY_DEV", config_env.get("TEAMUP_API_KEY", ""))
-        calendar_key = config_env.get("TEAMUP_CALENDAR_KEY_DEV", config_env.get("TEAMUP_CALENDAR_KEY", ""))
-        calendar_reader_key = config_env.get("TEAMUP_CALENDAR_READER_KEY", "")
-        subcalendar_id = config_env.get("TEAMUP_SUBCALENDAR_ID", "")
+        api_key = config_env.get("TEAMUP_API_KEY_DEV") or config_env["TEAMUP_API_KEY"]
+        calendar_key = config_env.get("TEAMUP_CALENDAR_KEY_DEV") or config_env["TEAMUP_CALENDAR_KEY"]
+        calendar_reader_key = config_env["TEAMUP_CALENDAR_READER_KEY"]
+        subcalendar_id = config_env["TEAMUP_SUBCALENDAR_ID"]
     else:
         api_key = config_env["TEAMUP_API_KEY"]
         calendar_key = config_env["TEAMUP_CALENDAR_KEY"]
