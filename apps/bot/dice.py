@@ -64,8 +64,15 @@ def get_event_details(item_id: str) -> dict:
         description = about.get('description', '')
         name = data.get('name', '')
         dates = data.get('dates', {})
-        start_date = format_event_date(dates.get('event_start_date', ''), '%Y-%m-%dT%H:%M:%S%z')
-        end_date = format_event_date(dates.get('event_end_date', ''), '%Y-%m-%dT%H:%M:%S%z')
+        event_start_date = dates.get('event_start_date', '')
+        event_end_date = dates.get('event_end_date', '')
+        
+        if not event_start_date or not event_end_date:
+            logger.error("Missing event start or end date in Dice event data")
+            return None
+        
+        start_date = format_event_date(event_start_date, '%Y-%m-%dT%H:%M:%S%z')
+        end_date = format_event_date(event_end_date, '%Y-%m-%dT%H:%M:%S%z')
         venues = data.get('venues', [])
         venue_address = venues[0].get('address', '') if venues else ''
         
