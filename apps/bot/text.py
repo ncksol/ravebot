@@ -13,6 +13,10 @@ no_event_url_message = "Вы ссылку на ивент забыли."
 
 unsupported_event_url_message = "К сожалению, я пока умею создавать ивенты только с ra.co и dice.fm"
 
+invalid_url_scheme_message = "Для безопасности можно использовать только HTTPS ссылки"
+
+malformed_url_message = "Неправильный формат ссылки"
+
 event_created_message = "Ивент добавлен в календарь. Оторвёмся!"
 
 event_creation_error_message = "Упс! Что-то пошло не так. Нужно курить логи."
