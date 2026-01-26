@@ -29,8 +29,13 @@ def get_events() -> "list[Event]":
     events = []    
     for data in response_data.get('events', []):
         try:
-            start_time_no_tz = parser.parse(data['start_dt']).replace(tzinfo=None).strftime("%Y-%m-%dT%H:%M:%S")
-            end_time_no_tz = parser.parse(data['end_dt']).replace(tzinfo=None).strftime("%Y-%m-%dT%H:%M:%S")
+            start_dt = data.get('start_dt', '')
+            end_dt = data.get('end_dt', '')
+            if not start_dt or not end_dt:
+                logger.warning("Missing start_dt or end_dt in event data, skipping")
+                continue
+            start_time_no_tz = parser.parse(start_dt).replace(tzinfo=None).strftime("%Y-%m-%dT%H:%M:%S")
+            end_time_no_tz = parser.parse(end_dt).replace(tzinfo=None).strftime("%Y-%m-%dT%H:%M:%S")
             custom_data = data.get('custom', {})
             url = custom_data.get('url', '')
             event = Event(event_id=data.get('id', ''), title=data.get('title', ''), start_time=start_time_no_tz, end_time=end_time_no_tz, 
@@ -68,9 +73,14 @@ def search_event(event: Event) -> str:
     events = []    
     for data in response_data.get('events', []):
         try:
+            start_dt = data.get('start_dt', '')
+            end_dt = data.get('end_dt', '')
+            if not start_dt or not end_dt:
+                logger.warning("Missing start_dt or end_dt in search event data, skipping")
+                continue
             custom_data = data.get('custom', {})
             url = custom_data.get('url', '')
-            event = Event(event_id=data.get('id', ''), title=data.get('title', ''), start_time=data.get('start_dt', ''), end_time=data.get('end_dt', ''), 
+            event = Event(event_id=data.get('id', ''), title=data.get('title', ''), start_time=start_dt, end_time=end_dt, 
                           location=data.get('location', ''), url=url, description=data.get('notes', ''))
             events.append(event)
         except (KeyError, ValueError) as e:

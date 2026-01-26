@@ -36,7 +36,7 @@ def get_ra_event(id: str):
         logger.error(f"Error: Missing 'data' in response: {data}")
         return None
     
-    return data.get("data", {}).get("event")
+    return data["data"].get("event")
 
 
 async def process_ra_event(url: str) -> Event:

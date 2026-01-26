@@ -277,6 +277,8 @@ async def update_announcement(context: ContextTypes.DEFAULT_TYPE, chat_id: int):
             logger.info("Announcement message found. Updating...")
             msg_object = await context.bot.edit_message_text(chat_id=chat_id, message_id=announcement_id, text=message, parse_mode=ParseMode.HTML, disable_web_page_preview=True)        
         except BadRequest as e:
+            # Check for "Message is not modified" error using substring matching
+            # This is the standard approach as Telegram's BadRequest doesn't provide structured error codes
             if "Message is not modified" in e.message:
                 logger.info("Nothing changed. Quitting...")
                 return
