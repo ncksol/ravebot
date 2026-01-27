@@ -1,0 +1,73 @@
+name: Test and Lint
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  lint:
+    name: Lint Code
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8 black
+          cd apps/bot
+          pip install -r requirements.txt
+      
+      - name: Run flake8
+        run: |
+          cd apps/bot
+          # Stop the build if there are Python syntax errors or undefined names
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          # Exit-zero treats all errors as warnings
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+      
+      - name: Check formatting with black
+        run: |
+          cd apps/bot
+          black --check --diff .
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-cov
+          cd apps/bot
+          pip install -r requirements.txt
+      
+      - name: Run tests
+        run: |
+          cd apps/bot
+          # Run pytest if tests exist, otherwise just verify imports
+          if [ -d "tests" ] || compgen -G "*_test.py" > /dev/null || compgen -G "test_*.py" > /dev/null; then
+            pytest --cov=. --cov-report=term-missing
+          else
+            python -c "import main; print('No tests found, verified imports successful')"
+          fi
