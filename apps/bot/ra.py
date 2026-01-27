@@ -1,4 +1,4 @@
-import requests, json, re, datetime, os
+import requests, json, re, datetime
 
 from models import Event
 from settings import RAConfiguration
@@ -11,30 +11,32 @@ HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:106.0) Gecko/20100101 Firefox/106.0'
 }
 
-#QUERY_TEMPLATE_PATH = "apps/bot/graphql_query_template.json"
-#QUERY_TEMPLATE_PATH = "graphql_query_template.json"
-#QUERY_TEMPLATE_PATH = os.getenv("GRAPHQL_QUERY_TEMPLATE_PATH")
-
 def get_ra_event(id: str):
-    with open(RAConfiguration.query_template_path, "r") as file:
+    try:
+        with open(RAConfiguration.query_template_path, "r") as file:
             payload = json.load(file)
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        logger.error(f"Error loading query template: {e}")
+        return None
 
     payload["variables"]["id"] = id
 
-    response = requests.post(URL, headers=HEADERS, json=payload, timeout=30)
-
     try:
+        response = requests.post(URL, headers=HEADERS, json=payload, timeout=30)
         response.raise_for_status()
         data = response.json()
-    except (requests.exceptions.RequestException, ValueError) as e:
+    except requests.exceptions.RequestException as e:
         logger.error(f"Error fetching RA event: {e}")
+        return None
+    except ValueError as e:
+        logger.error(f"Error parsing response JSON: {e}")
         return None
 
     if 'data' not in data:
-        logger.error(f"Error: {data}")
+        logger.error(f"Error: Missing 'data' in response: {data}")
         return None
     
-    return data["data"]["event"]
+    return data["data"].get("event")
 
 
 async def process_ra_event(url: str) -> Event:
@@ -48,8 +50,28 @@ async def process_ra_event(url: str) -> Event:
     if event_data is None:        
         return
     
-    event = Event(title=event_data['title'], url=url, description=event_data['content'], start_time=event_data['startTime'], end_time=event_data['endTime'], location=event_data['venue']['name'])
-    event.start_time = datetime.datetime.strptime(event.start_time, '%Y-%m-%dT%H:%M:%S.%f').strftime('%Y-%m-%dT%H:%M:%S')
-    event.end_time = datetime.datetime.strptime(event.end_time, '%Y-%m-%dT%H:%M:%S.%f').strftime('%Y-%m-%dT%H:%M:%S')
+    try:
+        venue = event_data.get('venue', {})
+        location = venue.get('name', '')
+        start_time = event_data.get('startTime', '')
+        end_time = event_data.get('endTime', '')
+        
+        if not start_time or not end_time:
+            logger.error("Missing start_time or end_time in RA event data")
+            return None
+            
+        event = Event(
+            title=event_data.get('title', ''), 
+            url=url, 
+            description=event_data.get('content', ''), 
+            start_time=start_time, 
+            end_time=end_time, 
+            location=location
+        )
+        event.start_time = datetime.datetime.strptime(event.start_time, '%Y-%m-%dT%H:%M:%S.%f').strftime('%Y-%m-%dT%H:%M:%S')
+        event.end_time = datetime.datetime.strptime(event.end_time, '%Y-%m-%dT%H:%M:%S.%f').strftime('%Y-%m-%dT%H:%M:%S')
+    except (ValueError, KeyError) as e:
+        logger.error(f"Error processing RA event data: {e}")
+        return None
     
     return event
