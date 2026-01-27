@@ -7,9 +7,6 @@ config_env = {
     **os.environ,  # override loaded values with system environment variables
 }
 
-class DatabaseConfiguration:
-    connection_string = config_env["DATABASE_URL"]
-
 class RAConfiguration:
     query_template_path = config_env["RA_QUERY_TEMPLATE_PATH"]
 

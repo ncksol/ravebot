@@ -1,8 +1,6 @@
 requests
 python-dotenv
 python-telegram-bot[job-queue]
-SQLAlchemy==2.0.1
-psycopg2-binary
 bs4
 beautifulsoup4
 python-dateutil
