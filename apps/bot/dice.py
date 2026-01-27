@@ -15,7 +15,7 @@ def get_dice_event_id(url) -> str:
         
         logger.info(f"Retrieving the URL: {url}")
 
-        response = urllib.request.urlopen(req)
+        response = urllib.request.urlopen(req, timeout=30)
         if response.status != 200:           
             logger.error(f"Failed to retrieve the URL. Status code: {response.status}")
             return None
@@ -50,22 +50,26 @@ async def process_dice_event(url: str) -> Event:
     return event
 
 def get_event_details(item_id: str) -> dict:
-    url = f"https://api.dice.fm/events/{item_id}/ticket_types"
-    response = urllib.request.urlopen(url)
-    if response.status != 200:
+    try:
+        url = f"https://api.dice.fm/events/{item_id}/ticket_types"
+        response = urllib.request.urlopen(url, timeout=30)
+        if response.status != 200:
+            return {}
+        data = json.loads(response.read())    
+        description = data['about']['description']
+        name = data['name']
+        start_date = format_event_date(data['dates']['event_start_date'], '%Y-%m-%dT%H:%M:%S%z')
+        end_date = format_event_date(data['dates']['event_end_date'], '%Y-%m-%dT%H:%M:%S%z')
+        venue_address = data['venues'][0]['address']
+        #event_venue_name = data['venues'][0]['name']
+        event_details = {
+            "description": description,
+            "start_date": start_date,
+            "end_date": end_date,
+            "name": name,
+            "venue_address": venue_address
+        }
+        return event_details
+    except Exception as e:
+        logger.error(f"An error occurred while fetching event details: {e}")
         return {}
-    data = json.loads(response.read())    
-    description = data['about']['description']
-    name = data['name']
-    start_date = format_event_date(data['dates']['event_start_date'], '%Y-%m-%dT%H:%M:%S%z')
-    end_date = format_event_date(data['dates']['event_end_date'], '%Y-%m-%dT%H:%M:%S%z')
-    venue_address = data['venues'][0]['address']
-    #event_venue_name = data['venues'][0]['name']
-    event_details = {
-        "description": description,
-        "start_date": start_date,
-        "end_date": end_date,
-        "name": name,
-        "venue_address": venue_address
-    }
-    return event_details
