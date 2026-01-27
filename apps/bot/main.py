@@ -73,7 +73,9 @@ bot_start_time = datetime.datetime.now(datetime.timezone.utc)
 
 
 async def rave_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info(f"Received /rave command from user {update.effective_user.id}")
     if is_old_command(update, context):
+        logger.info("Command is old, ignoring")
         return
     message = get_rave_message(context)
     await context.bot.send_message(
@@ -82,6 +84,7 @@ async def rave_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode=ParseMode.HTML,
         disable_web_page_preview=True,
     )
+    logger.info("Rave command completed")
 
 
 async def update_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -92,9 +95,11 @@ async def update_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info(f"Received /help command from user {update.effective_user.id}")
     if is_old_command(update, context):
         return
     await context.bot.send_message(chat_id=update.effective_chat.id, text=help_message)
+    logger.info("Help command completed")
 
 
 async def member_left_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -718,5 +723,12 @@ if __name__ == "__main__":
 
     application.add_handler(CallbackQueryHandler(button_click_handler))
 
+    # Add error handler to log all errors
+    async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Log errors caused by updates."""
+        logger.error(f"Exception while handling an update: {context.error}", exc_info=context.error)
+
+    application.add_error_handler(error_handler)
+
     logger.info("All handlers registered. Starting polling...")
-    application.run_polling(drop_pending_updates=True)
+    application.run_polling(drop_pending_updates=True, allowed_updates=Update.ALL_TYPES)
