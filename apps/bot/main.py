@@ -1,6 +1,4 @@
 import datetime
-from collections import defaultdict
-import threading
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import BadRequest
@@ -61,12 +59,6 @@ if ErrorReportingConfiguration.sentry_dsn:
         traces_sample_rate=0.1,
     )
     logger.info("Sentry error reporting initialized")
-
-# Rate limiting configuration
-RATE_LIMIT_WINDOW = 60  # 1 minute window
-RATE_LIMIT_MAX_REQUESTS = 3  # Max 3 requests per minute per user
-rate_limit_tracker = defaultdict(list)
-rate_limit_lock = threading.Lock()  # Thread-safe lock for rate limiting
 
 # Track bot start time for uptime calculation
 bot_start_time = datetime.datetime.now(datetime.timezone.utc)
@@ -210,40 +202,8 @@ async def unset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.effective_message.reply_text(text)
 
 
-def is_rate_limited(user_id: int) -> bool:
-    """Check if user is rate limited for createevent command. Thread-safe."""
-    with rate_limit_lock:
-        current_time = datetime.datetime.now(datetime.timezone.utc)
-        user_requests = rate_limit_tracker[user_id]
-
-        # Remove requests outside the time window
-        user_requests[:] = [
-            req_time
-            for req_time in user_requests
-            if (current_time - req_time).total_seconds() < RATE_LIMIT_WINDOW
-        ]
-
-        # Check if user has exceeded the limit
-        if len(user_requests) >= RATE_LIMIT_MAX_REQUESTS:
-            return True
-
-        # Add current request
-        user_requests.append(current_time)
-        return False
-
-
 async def create_event_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_old_command(update, context):
-        return
-
-    # Check rate limiting
-    user_id = update.effective_user.id
-    if is_rate_limited(user_id):
-        await update.effective_message.reply_text(
-            f"⚠️ Rate limit exceeded. Please wait before creating more events. "
-            f"(Max {RATE_LIMIT_MAX_REQUESTS} events per {RATE_LIMIT_WINDOW} seconds)"
-        )
-        logger.warning(f"Rate limit exceeded for user {user_id}")
         return
 
     # Log event creation attempt for auditing
@@ -475,10 +435,6 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     else:
         status_message += "⚠️ Error reporting: Disabled\n"
-
-    # Check rate limiting - use generator expression for efficiency
-    active_users = sum(1 for v in rate_limit_tracker.values() if v)
-    status_message += f"⏱️ Rate limiting: Active ({active_users} users tracked)\n"
 
     # Check scheduled jobs - count all jobs in the job queue
     try:
