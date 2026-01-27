@@ -15,7 +15,7 @@ def get_events() -> "list[Event]":
     monday = today - datetime.timedelta(days=today.weekday())    
     api_url = f'{CalendarConfiguration.api_url}/events?startDate={today.strftime("%Y-%m-%d")}&endDate={(today + datetime.timedelta(6)).strftime("%Y-%m-%d")}'
 
-    r = requests.get(api_url, headers=headers)
+    r = requests.get(api_url, headers=headers, timeout=30)
     response_data = r.json()
     events = []    
     for data in response_data['events']:
@@ -39,7 +39,7 @@ def search_event(event: Event) -> str:
     }
     encoded_params = urllib.parse.urlencode(params)
     api_url = f'{CalendarConfiguration.api_url}/events?{encoded_params}'
-    r = requests.get(api_url, headers=headers)
+    r = requests.get(api_url, headers=headers, timeout=30)
     if r.status_code != 200:
         logger.error(f"Failed to search event: {r.text}")
         return None
@@ -78,7 +78,7 @@ def create_calendar_event(event: Event) -> bool:
         }
     }
 
-    r = requests.post(api_url, headers=headers, json=payload)
+    r = requests.post(api_url, headers=headers, json=payload, timeout=30)
     if r.status_code != 201:
         logger.error(f"Failed to create event: {r.text}")
         return False
