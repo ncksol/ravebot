@@ -659,6 +659,9 @@ def is_old_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 if __name__ == "__main__":
+    logger.info("RaveBot starting up...")
+    logger.info(f"Environment: {ErrorReportingConfiguration.environment}")
+
     persistence = PicklePersistence("bot_data")
     application = (
         ApplicationBuilder()
@@ -667,6 +670,7 @@ if __name__ == "__main__":
         .build()
     )
 
+    # Register all handlers
     rave_handler = CommandHandler("rave", rave_command)
     application.add_handler(rave_handler)
 
@@ -714,4 +718,5 @@ if __name__ == "__main__":
 
     application.add_handler(CallbackQueryHandler(button_click_handler))
 
-    application.run_polling()
+    logger.info("All handlers registered. Starting polling...")
+    application.run_polling(drop_pending_updates=True)
