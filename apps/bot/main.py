@@ -221,7 +221,7 @@ async def kick_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
          # Calculate the datetime object that is one minute from now
         until_date = datetime.datetime.now() + datetime.timedelta(minutes=1)
-        await context.bot.ban_chat_member(chat_id=context.job.chat_id, user_id=user_id, until_date=until_date)
+        await context.bot.ban_chat_member(chat_id=update.effective_chat.id, user_id=user_id, until_date=until_date)
 
 async def calendar_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_old_command(update, context): return    
