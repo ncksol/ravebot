@@ -277,9 +277,15 @@ async def update_announcement(context: ContextTypes.DEFAULT_TYPE, chat_id: int):
             logger.info("Announcement message found. Updating...")
             msg_object = await context.bot.edit_message_text(chat_id=chat_id, message_id=announcement_id, text=message, parse_mode=ParseMode.HTML, disable_web_page_preview=True)        
         except BadRequest as e:
-            if e.message == "Message is not modified: specified new message content and reply markup are exactly the same as a current content and reply markup of the message":
+            # Check for "Message is not modified" error using substring matching
+            # This is the standard approach as Telegram's BadRequest doesn't provide structured error codes
+            if "Message is not modified" in e.message:
                 logger.info("Nothing changed. Quitting...")
-                return            
+                return
+            else:
+                logger.warning(f"Failed to edit message: {e.message}")
+                # Message might have been deleted or is otherwise unavailable, create a new one
+                announcement_id = None
                 
     if msg_object is None or announcement_id is None:
         logger.info("Announcement message not found. Creating new one...")
@@ -339,14 +345,20 @@ async def kick_idle(context: ContextTypes.DEFAULT_TYPE):
 async def clean_up_welcome_message(context: ContextTypes.DEFAULT_TYPE, chat_id: int, user_id: int):
     welcome_msg_id = context.chat_data.pop('welcome_' + str(user_id), None)
     if welcome_msg_id is not None:
-        await context.bot.delete_message(chat_id=chat_id, message_id=welcome_msg_id)
+        try:
+            await context.bot.delete_message(chat_id=chat_id, message_id=welcome_msg_id)
+        except BadRequest as e:
+            logger.warning(f"Failed to delete welcome message for user {user_id}: {e.message}")
     else:
         logger.warning(f"Welcome message for user {user_id} not found.")
 
 async def clean_up_warn_message(context: ContextTypes.DEFAULT_TYPE, chat_id: int, user_id: int):
     warn_msg_id = context.chat_data.pop('warn_' + str(user_id), None)
     if warn_msg_id is not None:
-        await context.bot.delete_message(chat_id=chat_id, message_id=warn_msg_id)
+        try:
+            await context.bot.delete_message(chat_id=chat_id, message_id=warn_msg_id)
+        except BadRequest as e:
+            logger.warning(f"Failed to delete warn message for user {user_id}: {e.message}")
     else:
         logger.warning(f"Warn message for user {user_id} not found.")
 
