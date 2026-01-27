@@ -41,11 +41,11 @@ async def process_dice_event(url: str) -> Event:
     if event_id is None:        
         return
     
-    json = get_event_details(event_id)
-    if json is None:        
+    event_data = get_event_details(event_id)
+    if event_data is None:        
         return
     
-    event = Event(title=json['name'], url=url, description=json['description'], start_time=json['start_date'], end_time=json['end_date'], location=json['venue_address'])
+    event = Event(title=event_data['name'], url=url, description=event_data['description'], start_time=event_data['start_date'], end_time=event_data['end_date'], location=event_data['venue_address'])
     
     return event
 

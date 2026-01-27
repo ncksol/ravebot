@@ -16,9 +16,9 @@ def get_events() -> "list[Event]":
     api_url = f'{CalendarConfiguration.api_url}/events?startDate={today.strftime("%Y-%m-%d")}&endDate={(today + datetime.timedelta(6)).strftime("%Y-%m-%d")}'
 
     r = requests.get(api_url, headers=headers)
-    json = r.json()
+    response_data = r.json()
     events = []    
-    for data in json['events']:
+    for data in response_data['events']:
         start_time_no_tz = parser.parse(data['start_dt']).replace(tzinfo=None).strftime("%Y-%m-%dT%H:%M:%S")
         end_time_no_tz = parser.parse(data['end_dt']).replace(tzinfo=None).strftime("%Y-%m-%dT%H:%M:%S")
         event = Event(event_id=data['id'], title=data['title'], start_time=start_time_no_tz, end_time=end_time_no_tz, 
@@ -44,9 +44,9 @@ def search_event(event: Event) -> str:
         logger.error(f"Failed to search event: {r.text}")
         return None
     
-    json = r.json()
+    response_data = r.json()
     events = []    
-    for data in json['events']:
+    for data in response_data['events']:
         event = Event(event_id=data['id'], title=data['title'], start_time=data['start_dt'], end_time=data['end_dt'], 
                       location=data['location'], url=data['custom']['url'], description=data['notes'])
         events.append(event)
