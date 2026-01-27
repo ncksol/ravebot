@@ -179,7 +179,11 @@ async def guest_list_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
 
     mentions = update.effective_message.parse_entities(MessageEntityType.MENTION)    
-    username = list(mentions.values())[0]
+    usernames = list(mentions.values())
+    if len(usernames) == 0:
+        await update.effective_message.reply_text(queue_user_not_found_message)
+        return
+    username = usernames[0]
     user_id = context.chat_data.get(username, None)
     if user_id is None:
         await update.effective_message.reply_text(queue_user_not_found_message)
