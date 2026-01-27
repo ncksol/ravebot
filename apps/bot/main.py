@@ -5,15 +5,14 @@ from telegram.error import BadRequest
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, PicklePersistence, MessageHandler, filters, CallbackQueryHandler
 from telegram.constants import ParseMode
 from telegram.constants import MessageEntityType
-from urllib.parse import urlparse
 
 from ra import process_ra_event
 from dice import process_dice_event
 from models import Cache
 from settings import BotConfiguration
 from events_calendar import get_calendar_link, get_events, create_calendar_event, search_event
-from utils import get_name, get_mention, logger
-from text import welcome_message, success_message, help_message, warn_message, kick_message, no_event_url_message, unsupported_event_url_message, event_created_message, event_creation_error_message, admin_access_error_message, queue_user_not_found_message, guest_list_success_message, kick_message, upcoming_events_header, no_upcoming_events_message, duplicate_event_message, duplicate_event_question_message, duplicate_event_create_button_text, duplicate_event_skip_button_text
+from utils import get_name, get_mention, logger, validate_and_sanitize_url
+from text import welcome_message, success_message, help_message, warn_message, kick_message, no_event_url_message, unsupported_event_url_message, event_created_message, event_creation_error_message, admin_access_error_message, queue_user_not_found_message, guest_list_success_message, kick_message, upcoming_events_header, no_upcoming_events_message, duplicate_event_message, duplicate_event_question_message, duplicate_event_create_button_text, duplicate_event_skip_button_text, invalid_url_scheme_message, malformed_url_message
 
 async def rave_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_old_command(update, context): return    
@@ -107,6 +106,11 @@ async def unset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def create_event_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_old_command(update, context): return
 
+    # Log event creation attempt for auditing
+    user_id = update.effective_user.id
+    username = update.effective_user.username or update.effective_user.first_name
+    logger.info(f"Event creation attempt by user {username} (ID: {user_id})")
+
     mentions = update.effective_message.parse_entities(MessageEntityType.URL)
     if len(list(mentions.values())) == 0:
         #await update.effective_message.reply_text(no_event_url_message)
@@ -118,18 +122,30 @@ async def create_event_command(update: Update, context: ContextTypes.DEFAULT_TYP
         #await update.effective_message.reply_text(no_event_url_message)
         return
     
-    event = None
-    parsed_url = urlparse(url)
-    domain = parsed_url.netloc
-    if domain == "ra.co":
-        event = await process_ra_event(url)        
-    elif domain == "dice.fm":
-        event = await process_dice_event(url)
-    else:
-        await update.effective_message.reply_text(unsupported_event_url_message)
+    # Validate and sanitize the URL
+    allowed_domains = ['ra.co', 'dice.fm']
+    is_valid, sanitized_url, error_msg, domain = validate_and_sanitize_url(url, allowed_domains)
+    
+    if not is_valid:
+        logger.warning(f"Invalid URL provided by user {username} (ID: {user_id}), domain: {domain or 'unknown'}. Error: {error_msg}")
+        if "HTTPS" in error_msg or "scheme" in error_msg:
+            await update.effective_message.reply_text(invalid_url_scheme_message)
+        elif "Unsupported domain" in error_msg:
+            await update.effective_message.reply_text(unsupported_event_url_message)
+        else:
+            await update.effective_message.reply_text(malformed_url_message)
         return
     
+    logger.info(f"Valid URL from user {username} (ID: {user_id}): {sanitized_url}, domain: {domain}")
+    
+    event = None
+    if domain == "ra.co":
+        event = await process_ra_event(sanitized_url)        
+    elif domain == "dice.fm":
+        event = await process_dice_event(sanitized_url)
+    
     if event is None:
+        logger.error(f"Event processing failed for URL: {sanitized_url}")
         await update.effective_message.reply_text(event_creation_error_message)
         return
             
@@ -147,9 +163,11 @@ async def create_event_command(update: Update, context: ContextTypes.DEFAULT_TYP
 
     created = create_calendar_event(event)
     if created:
+        logger.info(f"Event created successfully by user {username} (ID: {user_id}): {event.title}")
         await update.effective_message.reply_text(event_created_message)
         update_cache(context)
     else:
+        logger.error(f"Event creation failed for user {username} (ID: {user_id})")
         await update.effective_message.reply_text(event_creation_error_message)
 
 async def button_click_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
