@@ -1,0 +1,37 @@
+name: Azure Deploy
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    name: Build and Deploy to Azure
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Login to Azure Container Registry
+        uses: azure/docker-login@v2
+        with:
+          login-server: ravebotacr.azurecr.io
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Build and push Docker image
+        run: |
+          docker build -t ravebotacr.azurecr.io/ravebot:${{ github.sha }} -t ravebotacr.azurecr.io/ravebot:latest ./apps/bot
+          docker push ravebotacr.azurecr.io/ravebot:${{ github.sha }}
+          docker push ravebotacr.azurecr.io/ravebot:latest
+
+      - name: Deploy to Azure Container Apps
+        uses: azure/container-apps-deploy-action@v2
+        with:
+          resourceGroup: ravebot-rg
+          containerAppName: ravebot
+          imageToDeploy: ravebotacr.azurecr.io/ravebot:${{ github.sha }}
