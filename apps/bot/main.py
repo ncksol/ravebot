@@ -1,4 +1,6 @@
 import datetime
+from collections import defaultdict
+import threading
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import BadRequest
@@ -13,6 +15,15 @@ from settings import BotConfiguration
 from events_calendar import get_calendar_link, get_events, create_calendar_event, search_event
 from utils import get_name, get_mention, logger, validate_and_sanitize_url
 from text import welcome_message, success_message, help_message, warn_message, kick_message, no_event_url_message, unsupported_event_url_message, event_created_message, event_creation_error_message, admin_access_error_message, queue_user_not_found_message, guest_list_success_message, kick_message, upcoming_events_header, no_upcoming_events_message, duplicate_event_message, duplicate_event_question_message, duplicate_event_create_button_text, duplicate_event_skip_button_text, invalid_url_scheme_message, malformed_url_message
+
+# Rate limiting configuration
+RATE_LIMIT_WINDOW = 60  # 1 minute window
+RATE_LIMIT_MAX_REQUESTS = 3  # Max 3 requests per minute per user
+rate_limit_tracker = defaultdict(list)
+rate_limit_lock = threading.Lock()  # Thread-safe lock for rate limiting
+
+# Track bot start time for uptime calculation
+bot_start_time = datetime.datetime.now(datetime.timezone.utc)
 
 async def rave_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_old_command(update, context): return    
@@ -103,8 +114,36 @@ async def unset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = "Update timer successfully removed!" if job_removed else "You have no active update timer."
     await update.effective_message.reply_text(text)
 
+def is_rate_limited(user_id: int) -> bool:
+    """Check if user is rate limited for createevent command. Thread-safe."""
+    with rate_limit_lock:
+        current_time = datetime.datetime.now(datetime.timezone.utc)
+        user_requests = rate_limit_tracker[user_id]
+        
+        # Remove requests outside the time window
+        user_requests[:] = [req_time for req_time in user_requests 
+                           if (current_time - req_time).total_seconds() < RATE_LIMIT_WINDOW]
+        
+        # Check if user has exceeded the limit
+        if len(user_requests) >= RATE_LIMIT_MAX_REQUESTS:
+            return True
+        
+        # Add current request
+        user_requests.append(current_time)
+        return False
+
 async def create_event_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_old_command(update, context): return
+    
+    # Check rate limiting
+    user_id = update.effective_user.id
+    if is_rate_limited(user_id):
+        await update.effective_message.reply_text(
+            f"⚠️ Rate limit exceeded. Please wait before creating more events. "
+            f"(Max {RATE_LIMIT_MAX_REQUESTS} events per {RATE_LIMIT_WINDOW} seconds)"
+        )
+        logger.warning(f"Rate limit exceeded for user {user_id}")
+        return
 
     # Log event creation attempt for auditing
     user_id = update.effective_user.id
@@ -250,6 +289,51 @@ async def calendar_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_old_command(update, context): return    
     message = get_calendar_link()
     await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
+
+async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin command to check bot health and status."""
+    if is_old_command(update, context): return
+    user_id = update.effective_user.id
+    if user_id != BotConfiguration.admin_id:
+        await update.effective_message.reply_text(admin_access_error_message)
+        return
+    
+    status_message = "🤖 <b>Bot Status</b>\n\n"
+    
+    # Check bot basic info
+    status_message += "✅ Bot is running\n"
+    uptime = datetime.datetime.now(datetime.timezone.utc) - bot_start_time
+    hours, remainder = divmod(int(uptime.total_seconds()), 3600)
+    minutes, seconds = divmod(remainder, 60)
+    status_message += f"⏱️ Uptime: {hours}h {minutes}m {seconds}s\n"
+    
+    # Check cache status
+    cache = context.chat_data.get('cache', None)
+    if cache:
+        status_message += f"💾 Cache: {len(cache.events)} events loaded\n"
+        status_message += f"🕐 Last update: {cache.last_update.strftime('%Y-%m-%d %H:%M:%S')}\n"
+    else:
+        status_message += "⚠️ Cache: Not initialized\n"
+    
+    # Check rate limiting - use generator expression for efficiency
+    active_users = sum(1 for v in rate_limit_tracker.values() if v)
+    status_message += f"⏱️ Rate limiting: Active ({active_users} users tracked)\n"
+    
+    # Check scheduled jobs - count all jobs in the job queue
+    try:
+        # Try to get all jobs (works in most versions)
+        all_jobs = context.job_queue.jobs()
+        job_count = len(all_jobs) if all_jobs else 0
+    except AttributeError:
+        # Fallback for older versions - use -1 to indicate unavailable
+        job_count = -1
+    
+    if job_count >= 0:
+        status_message += f"⚙️ Scheduled jobs: {job_count}\n"
+    else:
+        status_message += "⚙️ Scheduled jobs: N/A\n"
+    
+    await update.effective_message.reply_html(status_message)
 
 
 def remove_job_if_exists(name: str, context: ContextTypes.DEFAULT_TYPE) -> bool:    
@@ -404,6 +488,9 @@ if __name__ == '__main__':
 
     calendar_handler = CommandHandler('calendar', calendar_command)
     application.add_handler(calendar_handler)
+
+    status_handler = CommandHandler('status', status_command)
+    application.add_handler(status_handler)
 
     application.add_handler(CallbackQueryHandler(button_click_handler))
 
