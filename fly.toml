@@ -2,15 +2,3 @@ app = "rave-bot"
 kill_signal = "SIGINT"
 kill_timeout = 5
 processes = []
-
-# This is a long-running process (Telegram bot using polling), not a web server
-# No http_service needed - the bot polls Telegram's servers
-
-[[vm]]
-  memory = "256mb"
-  cpu_kind = "shared"
-  cpus = 1
-
-# Keep the machine running (don't auto-stop since this is a polling bot)
-[deploy]
-  strategy = "immediate"

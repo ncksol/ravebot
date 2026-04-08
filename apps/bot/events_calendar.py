@@ -26,39 +26,26 @@ def get_events() -> "list[Event]":
     except ValueError as e:
         logger.error(f"Failed to parse JSON response from calendar API: {e}")
         return []
-
-    events = []
-    for data in response_data.get("events", []):
+    
+    events = []    
+    for data in response_data.get('events', []):
         try:
-            start_dt = data.get("start_dt", "")
-            end_dt = data.get("end_dt", "")
+            start_dt = data.get('start_dt', '')
+            end_dt = data.get('end_dt', '')
             if not start_dt or not end_dt:
                 logger.warning("Missing start_dt or end_dt in event data, skipping")
                 continue
-            start_time_no_tz = (
-                parser.parse(start_dt)
-                .replace(tzinfo=None)
-                .strftime("%Y-%m-%dT%H:%M:%S")
-            )
-            end_time_no_tz = (
-                parser.parse(end_dt).replace(tzinfo=None).strftime("%Y-%m-%dT%H:%M:%S")
-            )
-            custom_data = data.get("custom", {})
-            url = custom_data.get("url", "")
-            event = Event(
-                event_id=data.get("id", ""),
-                title=data.get("title", ""),
-                start_time=start_time_no_tz,
-                end_time=end_time_no_tz,
-                location=data.get("location", ""),
-                url=url,
-                description=data.get("notes", ""),
-            )
+            start_time_no_tz = parser.parse(start_dt).replace(tzinfo=None).strftime("%Y-%m-%dT%H:%M:%S")
+            end_time_no_tz = parser.parse(end_dt).replace(tzinfo=None).strftime("%Y-%m-%dT%H:%M:%S")
+            custom_data = data.get('custom', {})
+            url = custom_data.get('url', '')
+            event = Event(event_id=data.get('id', ''), title=data.get('title', ''), start_time=start_time_no_tz, end_time=end_time_no_tz, 
+                          location=data.get('location', ''), url=url, description=data.get('notes', ''))
             events.append(event)
         except (KeyError, ValueError) as e:
             logger.error(f"Failed to parse event data: {e}")
             continue
-
+    
     if len(events) == 0:
         logger.warning("No events found")
     return events
@@ -75,7 +62,7 @@ def search_event(event: Event) -> str:
         "query": f'"{event.url}"',
     }
     encoded_params = urllib.parse.urlencode(params)
-    api_url = f"{CalendarConfiguration.api_url}/events?{encoded_params}"
+    api_url = f'{CalendarConfiguration.api_url}/events?{encoded_params}'
     try:
         r = requests.get(api_url, headers=headers, timeout=30)
         r.raise_for_status()
@@ -86,28 +73,19 @@ def search_event(event: Event) -> str:
     except ValueError as e:
         logger.error(f"Failed to parse JSON response: {e}")
         return None
-
-    events = []
-    for data in response_data.get("events", []):
+    
+    events = []    
+    for data in response_data.get('events', []):
         try:
-            start_dt = data.get("start_dt", "")
-            end_dt = data.get("end_dt", "")
+            start_dt = data.get('start_dt', '')
+            end_dt = data.get('end_dt', '')
             if not start_dt or not end_dt:
-                logger.warning(
-                    "Missing start_dt or end_dt in search event data, skipping"
-                )
+                logger.warning("Missing start_dt or end_dt in search event data, skipping")
                 continue
-            custom_data = data.get("custom", {})
-            url = custom_data.get("url", "")
-            event = Event(
-                event_id=data.get("id", ""),
-                title=data.get("title", ""),
-                start_time=start_dt,
-                end_time=end_dt,
-                location=data.get("location", ""),
-                url=url,
-                description=data.get("notes", ""),
-            )
+            custom_data = data.get('custom', {})
+            url = custom_data.get('url', '')
+            event = Event(event_id=data.get('id', ''), title=data.get('title', ''), start_time=start_dt, end_time=end_dt, 
+                          location=data.get('location', ''), url=url, description=data.get('notes', ''))
             events.append(event)
         except (KeyError, ValueError) as e:
             logger.error(f"Failed to parse event data in search: {e}")
@@ -129,7 +107,7 @@ def create_calendar_event(event: Event) -> bool:
         "subcalendar_ids": [CalendarConfiguration.subcalendar_id],
         "start_dt": f"{event.start_time}",
         "end_dt": f"{event.end_time}",
-        "tz": CalendarConfiguration.timezone,
+        "tz" : CalendarConfiguration.timezone,
         "notes": f"{cut_string(event.description, 65535)}",
         "title": f"{cut_string(event.title, 255)}",
         "location": f"{cut_string(event.location, 255)}",

@@ -1,62 +1,35 @@
-import logging
-import datetime
-import sys
-import json
+import logging, datetime, sys, json
 from urllib.parse import urlparse, urlunparse
 
 from settings import LoggingConfiguration
-
-
-# Configure root logger to capture ALL logs (including from python-telegram-bot)
-def setup_logging():
-    """Configure logging for the entire application."""
-    root_logger = logging.getLogger()
-    root_logger.setLevel(logging.INFO)
-
-    # Remove any existing handlers to avoid duplicates
-    for handler in root_logger.handlers[:]:
-        root_logger.removeHandler(handler)
-
-    # Create stdout handler
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setLevel(logging.DEBUG)
-
-    # Use JSON format if configured, otherwise use standard format
-    if LoggingConfiguration.json_format:
-        handler.setFormatter(JsonFormatter())
-    else:
-        handler.setFormatter(
-            logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-        )
-
-    root_logger.addHandler(handler)
-
-    # Reduce noise from HTTP libraries
-    logging.getLogger("httpx").setLevel(logging.WARNING)
-    logging.getLogger("httpcore").setLevel(logging.WARNING)
-    logging.getLogger("urllib3").setLevel(logging.WARNING)
-
 
 # Custom JSON formatter for structured logging
 class JsonFormatter(logging.Formatter):
     def format(self, record):
         log_data = {
-            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-            "level": record.levelname,
-            "logger": record.name,
-            "message": record.getMessage(),
+            'timestamp': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            'level': record.levelname,
+            'logger': record.name,
+            'message': record.getMessage(),
         }
         if record.exc_info:
-            log_data["exception"] = self.formatException(record.exc_info)
+            log_data['exception'] = self.formatException(record.exc_info)
         return json.dumps(log_data)
 
-
-# Initialize logging on module import
-setup_logging()
-
-# Get logger for this module (and export for other modules to use)
+# Set up the logger
 logger = logging.getLogger(__name__)
 
+handler = logging.StreamHandler(sys.stdout)
+handler.setLevel(logging.DEBUG)
+
+if LoggingConfiguration.json_format:
+    formatter = JsonFormatter()
+else:
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+handler.setFormatter(formatter)
+
+logger.addHandler(handler)
 
 def cut_string(string: str, length: int):
     if len(string) > length:
