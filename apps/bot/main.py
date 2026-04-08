@@ -141,6 +141,7 @@ async def new_member_welcome_command(
         )
 
         context.chat_data["welcome_" + str(member.id)] = welcome_msg.message_id
+        context.chat_data["joined_" + str(member.id)] = update.effective_message.message_id
 
         remove_job_if_exists(str(member.id), context)
         context.job_queue.run_once(
@@ -650,7 +651,7 @@ async def kick_idle(context: ContextTypes.DEFAULT_TYPE):
 
     message = kick_message.format(name=mention)
 
-    await context.bot.send_message(
+    kick_msg = await context.bot.send_message(
         chat_id=context.job.chat_id, text=message, parse_mode=ParseMode.HTML
     )
     await context.bot.ban_chat_member(
@@ -662,6 +663,16 @@ async def kick_idle(context: ContextTypes.DEFAULT_TYPE):
 
     await clean_up_welcome_message(context, context.job.chat_id, user_id)
     await clean_up_warn_message(context, context.job.chat_id, user_id)
+    await clean_up_joined_message(context, context.job.chat_id, user_id)
+
+    # Schedule kick message self-deletion after 5 minutes
+    context.job_queue.run_once(
+        delete_kick_message,
+        when=5 * 60,
+        chat_id=context.job.chat_id,
+        data={"message_id": kick_msg.message_id},
+        name=f"kick_msg_{user_id}",
+    )
 
 
 async def clean_up_welcome_message(
@@ -688,6 +699,29 @@ async def clean_up_warn_message(
             logger.warning(f"Failed to delete warn message for user {user_id}: {e.message}")
     else:
         logger.warning(f"Warn message for user {user_id} not found.")
+
+
+async def clean_up_joined_message(
+    context: ContextTypes.DEFAULT_TYPE, chat_id: int, user_id: int
+):
+    joined_msg_id = context.chat_data.pop("joined_" + str(user_id), None)
+    if joined_msg_id is not None:
+        try:
+            await context.bot.delete_message(chat_id=chat_id, message_id=joined_msg_id)
+        except BadRequest as e:
+            logger.warning(
+                f"Failed to delete joined message for user {user_id}: {e.message}"
+            )
+
+
+async def delete_kick_message(context: ContextTypes.DEFAULT_TYPE):
+    message_id = context.job.data["message_id"]
+    try:
+        await context.bot.delete_message(
+            chat_id=context.job.chat_id, message_id=message_id
+        )
+    except BadRequest as e:
+        logger.warning(f"Failed to delete kick message: {e.message}")
 
 
 def is_old_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
