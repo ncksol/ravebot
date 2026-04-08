@@ -120,32 +120,7 @@ The project consists of two main components:
 
 ## Deployment
 
-The bot is designed to be deployed on [Fly.io](https://fly.io). Each component has its own `fly.toml` configuration.
-
-### Deploy the Bot
-
-```bash
-cd apps/bot
-fly deploy
-```
-
-### Deploy the Updater
-
-```bash
-cd apps/updater
-fly deploy
-```
-
-### Environment Variables on Fly.io
-
-Set secrets using the Fly CLI:
-
-```bash
-fly secrets set BOT_TOKEN=your_token_here
-fly secrets set DATABASE_URL=your_database_url
-fly secrets set ADMIN_ID=your_admin_id
-# ... set other required secrets
-```
+The bot is deployed to **Azure Container Apps** via a manual GitHub Actions workflow (`.github/workflows/azure-deploy.yml`). It builds a Docker image, pushes to Azure Container Registry, and deploys to Container Apps.
 
 ## Bot Commands
 
