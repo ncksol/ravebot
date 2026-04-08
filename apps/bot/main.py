@@ -1,4 +1,5 @@
 import datetime
+import os
 from collections import defaultdict
 import threading
 
@@ -447,6 +448,10 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     status_message = "🤖 <b>Bot Status</b>\n\n"
 
+    # Version
+    app_version = os.environ.get("APP_VERSION", "dev")
+    status_message += f"📦 Version: {app_version}\n"
+
     # Check bot basic info
     status_message += "✅ Bot is running\n"
     uptime = datetime.datetime.now(datetime.timezone.utc) - bot_start_time
@@ -467,51 +472,6 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Check rate limiting - use generator expression for efficiency
     active_users = sum(1 for v in rate_limit_tracker.values() if v)
     status_message += f"⏱️ Rate limiting: Active ({active_users} users tracked)\n"
-
-    # Check scheduled jobs - count all jobs in the job queue
-    try:
-        # Try to get all jobs (works in most versions)
-        all_jobs = context.job_queue.jobs()
-        job_count = len(all_jobs) if all_jobs else 0
-    except AttributeError:
-        # Fallback for older versions - use -1 to indicate unavailable
-        job_count = -1
-
-    if job_count >= 0:
-        status_message += f"⚙️ Scheduled jobs: {job_count}\n"
-    else:
-        status_message += "⚙️ Scheduled jobs: N/A\n"
-
-    await update.effective_message.reply_html(status_message)
-
-
-async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Admin command to check bot health and status."""
-    if is_old_command(update, context):
-        return
-    user_id = update.effective_user.id
-    if user_id != BotConfiguration.admin_id:
-        await update.effective_message.reply_text(admin_access_error_message)
-        return
-
-    status_message = "🤖 <b>Bot Status</b>\n\n"
-
-    # Check bot basic info
-    status_message += "✅ Bot is running\n"
-    uptime = datetime.datetime.now(datetime.timezone.utc) - bot_start_time
-    hours, remainder = divmod(int(uptime.total_seconds()), 3600)
-    minutes, seconds = divmod(remainder, 60)
-    status_message += f"⏱️ Uptime: {hours}h {minutes}m {seconds}s\n"
-
-    # Check cache status
-    cache = context.chat_data.get("cache", None)
-    if cache:
-        status_message += f"💾 Cache: {len(cache.events)} events loaded\n"
-        status_message += (
-            f"🕐 Last update: {cache.last_update.strftime('%Y-%m-%d %H:%M:%S')}\n"
-        )
-    else:
-        status_message += "⚠️ Cache: Not initialized\n"
 
     # Check scheduled jobs - count all jobs in the job queue
     try:

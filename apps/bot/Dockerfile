@@ -12,6 +12,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
+# Bake version into the image
+ARG APP_VERSION=dev
+ENV APP_VERSION=${APP_VERSION}
+
 # Change ownership to non-root user
 RUN chown -R appuser:appuser /home/appuser/app
 

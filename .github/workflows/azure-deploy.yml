@@ -3,6 +3,9 @@ name: Azure Deploy
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-and-deploy:
     name: Build and Deploy to Azure
@@ -10,6 +13,32 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Determine next version
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Get latest release tag (e.g. v1.0.3), default to v0.0.0
+          LATEST=$(gh release list --limit 1 --json tagName --jq '.[0].tagName // "v0.0.0"')
+          echo "Latest release: $LATEST"
+
+          # Increment patch version
+          MAJOR=$(echo "$LATEST" | sed 's/v//' | cut -d. -f1)
+          MINOR=$(echo "$LATEST" | sed 's/v//' | cut -d. -f2)
+          PATCH=$(echo "$LATEST" | sed 's/v//' | cut -d. -f3)
+          NEXT="v${MAJOR}.${MINOR}.$((PATCH + 1))"
+          echo "Next version: $NEXT"
+          echo "version=$NEXT" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create ${{ steps.version.outputs.version }} \
+            --target ${{ github.sha }} \
+            --title "${{ steps.version.outputs.version }}" \
+            --generate-notes
 
       - name: Login to Azure
         uses: azure/login@v2
@@ -25,7 +54,11 @@ jobs:
 
       - name: Build and push Docker image
         run: |
-          docker build -t ravebotacr.azurecr.io/ravebot:${{ github.sha }} -t ravebotacr.azurecr.io/ravebot:latest ./apps/bot
+          docker build \
+            --build-arg APP_VERSION=${{ steps.version.outputs.version }} \
+            -t ravebotacr.azurecr.io/ravebot:${{ github.sha }} \
+            -t ravebotacr.azurecr.io/ravebot:latest \
+            ./apps/bot
           docker push ravebotacr.azurecr.io/ravebot:${{ github.sha }}
           docker push ravebotacr.azurecr.io/ravebot:latest
 
