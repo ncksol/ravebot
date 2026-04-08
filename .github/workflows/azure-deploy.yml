@@ -2,6 +2,10 @@ name: Azure Deploy
 
 on:
   workflow_dispatch:
+  workflow_run:
+    workflows: ["Test and Lint"]
+    types: [completed]
+    branches: [main]
 
 permissions:
   contents: write
@@ -10,6 +14,9 @@ jobs:
   build-and-deploy:
     name: Build and Deploy to Azure
     runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
 
     steps:
       - uses: actions/checkout@v4
