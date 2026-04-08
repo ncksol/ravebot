@@ -3,18 +3,20 @@ from urllib.parse import urlparse, urlunparse
 
 from settings import LoggingConfiguration
 
+
 # Custom JSON formatter for structured logging
 class JsonFormatter(logging.Formatter):
     def format(self, record):
         log_data = {
-            'timestamp': datetime.datetime.now(datetime.timezone.utc).isoformat(),
-            'level': record.levelname,
-            'logger': record.name,
-            'message': record.getMessage(),
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
         }
         if record.exc_info:
-            log_data['exception'] = self.formatException(record.exc_info)
+            log_data["exception"] = self.formatException(record.exc_info)
         return json.dumps(log_data)
+
 
 # Set up the logger
 logger = logging.getLogger(__name__)
@@ -25,11 +27,14 @@ handler.setLevel(logging.DEBUG)
 if LoggingConfiguration.json_format:
     formatter = JsonFormatter()
 else:
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
 
 handler.setFormatter(formatter)
 
 logger.addHandler(handler)
+
 
 def cut_string(string: str, length: int):
     if len(string) > length:
