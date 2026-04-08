@@ -43,8 +43,9 @@ class TestRemoveJobIfExists:
 
 
 class TestUpdateCache:
+    @pytest.mark.asyncio
     @patch("main.get_events")
-    def test_update_cache_new_events(self, mock_get_events):
+    async def test_update_cache_new_events(self, mock_get_events):
         """Test updating cache with new events"""
         mock_events = [
             Event(
@@ -61,7 +62,7 @@ class TestUpdateCache:
         context = MagicMock()
         context.chat_data = {}
 
-        update_cache(context)
+        await update_cache(context)
 
         assert "cache" in context.chat_data
         assert context.chat_data["cache"].events == mock_events
@@ -69,9 +70,12 @@ class TestUpdateCache:
 
 
 class TestGetRaveMessage:
-    @patch("main.update_cache")
+    @pytest.mark.asyncio
+    @patch("main.update_cache", new_callable=AsyncMock)
     @patch("main.get_events")
-    def test_get_rave_message_with_events(self, mock_get_events, mock_update_cache):
+    async def test_get_rave_message_with_events(
+        self, mock_get_events, mock_update_cache
+    ):
         """Test getting rave message with events"""
         events = [
             Event(
@@ -88,31 +92,33 @@ class TestGetRaveMessage:
         cache = Cache(datetime.datetime.now(), events)
         context.chat_data = {"cache": cache}
 
-        message = get_rave_message(context)
+        message = await get_rave_message(context)
 
         assert "Event 1" in message
         assert "Venue 1" in message
 
-    @patch("main.update_cache")
-    def test_get_rave_message_no_events(self, mock_update_cache):
+    @pytest.mark.asyncio
+    @patch("main.update_cache", new_callable=AsyncMock)
+    async def test_get_rave_message_no_events(self, mock_update_cache):
         """Test getting rave message with no events"""
         context = MagicMock()
         cache = Cache(datetime.datetime.now(), [])
         context.chat_data = {"cache": cache}
 
-        message = get_rave_message(context)
+        message = await get_rave_message(context)
 
         assert message is not None
 
-    @patch("main.update_cache")
-    def test_get_rave_message_outdated_cache(self, mock_update_cache):
+    @pytest.mark.asyncio
+    @patch("main.update_cache", new_callable=AsyncMock)
+    async def test_get_rave_message_outdated_cache(self, mock_update_cache):
         """Test getting rave message with outdated cache"""
         old_date = datetime.datetime.now() - datetime.timedelta(days=2)
         context = MagicMock()
         cache = Cache(old_date, [])
         context.chat_data = {"cache": cache}
 
-        message = get_rave_message(context)
+        message = await get_rave_message(context)
 
         mock_update_cache.assert_called_once_with(context)
 

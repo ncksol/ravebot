@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 import os
 from collections import defaultdict
@@ -71,7 +72,7 @@ async def rave_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_old_command(update, context):
         logger.info("Command is old, ignoring")
         return
-    message = get_rave_message(context)
+    message = await get_rave_message(context)
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=message,
@@ -84,7 +85,7 @@ async def rave_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def update_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_old_command(update, context):
         return
-    update_cache(context)
+    await update_cache(context)
     await update_announcement(context, update.effective_chat.id)
 
 
@@ -180,8 +181,11 @@ async def set_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         interval=1 * 60 * 60,
         first=60,
         chat_id=chat_id,
-        name=str(chat_id),
+        name=f"update_{chat_id}",
     )
+
+    # Persist timer state so it can be restored after restart
+    context.bot_data.setdefault("update_timers", {})[chat_id] = True
 
     text = "Update timer successfully set!"
     if job_removed:
@@ -199,6 +203,7 @@ async def unset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     chat_id = update.effective_message.chat_id
     job_removed = remove_job_if_exists(f"update_{chat_id}", context)
+    context.bot_data.get("update_timers", {}).pop(chat_id, None)
     text = (
         "Update timer successfully removed!"
         if job_removed
@@ -235,6 +240,7 @@ async def create_event_command(update: Update, context: ContextTypes.DEFAULT_TYP
 
     # Check rate limiting
     user_id = update.effective_user.id
+    username = update.effective_user.username or update.effective_user.first_name
     if is_rate_limited(user_id):
         await update.effective_message.reply_text(
             f"⚠️ Rate limit exceeded. Please wait before creating more events. "
@@ -243,9 +249,6 @@ async def create_event_command(update: Update, context: ContextTypes.DEFAULT_TYP
         logger.warning(f"Rate limit exceeded for user {user_id}")
         return
 
-    # Log event creation attempt for auditing
-    user_id = update.effective_user.id
-    username = update.effective_user.username or update.effective_user.first_name
     logger.info(f"Event creation attempt by user {username} (ID: {user_id})")
 
     mentions = update.effective_message.parse_entities(MessageEntityType.URL)
@@ -292,7 +295,7 @@ async def create_event_command(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.effective_message.reply_text(event_creation_error_message)
         return
 
-    duplicate = search_event(event)
+    duplicate = await asyncio.to_thread(search_event, event)
     if duplicate is not None:
         message = duplicate_event_question_message + "\n\n" + duplicate
         await update.effective_message.reply_text(
@@ -317,13 +320,13 @@ async def create_event_command(update: Update, context: ContextTypes.DEFAULT_TYP
         context.user_data["event"] = event
         return
 
-    created = create_calendar_event(event)
+    created = await asyncio.to_thread(create_calendar_event, event)
     if created:
         logger.info(
             f"Event created successfully by user {username} (ID: {user_id}): {event.title}"
         )
         await update.effective_message.reply_text(event_created_message)
-        update_cache(context)
+        await update_cache(context)
     else:
         logger.error(f"Event creation failed for user {username} (ID: {user_id})")
         await update.effective_message.reply_text(event_creation_error_message)
@@ -345,10 +348,10 @@ async def button_click_handler(
             await query.edit_message_text(text=event_creation_error_message)
             return
 
-        created = create_calendar_event(event)
+        created = await asyncio.to_thread(create_calendar_event, event)
         if created:
             await query.edit_message_text(text=event_created_message)
-            update_cache(context)
+            await update_cache(context)
         else:
             await query.edit_message_text(text=event_creation_error_message)
 
@@ -506,38 +509,35 @@ async def update_announcement_timer(context: ContextTypes.DEFAULT_TYPE):
 
 
 async def update_announcement(context: ContextTypes.DEFAULT_TYPE, chat_id: int):
-    announcement_id = None
+    old_announcement_id = None
     if (
         "announcement_id" in context.chat_data
         and context.chat_data["announcement_id"] is not None
     ):
-        announcement_id = int(context.chat_data["announcement_id"])
+        old_announcement_id = int(context.chat_data["announcement_id"])
 
-    message = get_rave_message(context)
+    message = await get_rave_message(context)
     msg_object = None
-    if announcement_id is not None:
+    if old_announcement_id is not None:
         try:
             logger.info("Announcement message found. Updating...")
             msg_object = await context.bot.edit_message_text(
                 chat_id=chat_id,
-                message_id=announcement_id,
+                message_id=old_announcement_id,
                 text=message,
                 parse_mode=ParseMode.HTML,
                 disable_web_page_preview=True,
             )
         except BadRequest as e:
-            # Check for "Message is not modified" error using substring matching
-            # This is the standard approach as Telegram's BadRequest doesn't provide structured error codes
             if "Message is not modified" in e.message:
                 logger.info("Nothing changed. Quitting...")
                 return
             else:
                 logger.warning(f"Failed to edit message: {e.message}")
-                # Message might have been deleted or is otherwise unavailable, create a new one
-                announcement_id = None
+                msg_object = None
 
-    if msg_object is None or announcement_id is None:
-        logger.info("Announcement message not found. Creating new one...")
+    if msg_object is None:
+        logger.info("Creating new announcement message...")
         msg_object = await context.bot.send_message(
             chat_id=chat_id,
             text=message,
@@ -548,19 +548,39 @@ async def update_announcement(context: ContextTypes.DEFAULT_TYPE, chat_id: int):
     if msg_object is not None:
         await msg_object.pin(disable_notification=True)
         context.chat_data["announcement_id"] = msg_object.message_id
+        # Clean up old message after new one is successfully created and pinned
+        if (
+            old_announcement_id is not None
+            and msg_object.message_id != old_announcement_id
+        ):
+            await clean_up_old_announcement(context, chat_id, old_announcement_id)
 
 
-def get_rave_message(context: ContextTypes.DEFAULT_TYPE):
+async def clean_up_old_announcement(
+    context: ContextTypes.DEFAULT_TYPE, chat_id: int, message_id: int
+):
+    """Try to unpin and delete an old announcement message."""
+    try:
+        await context.bot.unpin_chat_message(chat_id=chat_id, message_id=message_id)
+    except BadRequest as e:
+        logger.warning(f"Failed to unpin old announcement: {e.message}")
+    try:
+        await context.bot.delete_message(chat_id=chat_id, message_id=message_id)
+    except BadRequest as e:
+        logger.warning(f"Failed to delete old announcement: {e.message}")
+
+
+async def get_rave_message(context: ContextTypes.DEFAULT_TYPE):
     cache = context.chat_data.get("cache", Cache(datetime.datetime.now(), []))
     if (
         not cache.events
-        or len(cache.events) == 0
         or (datetime.datetime.now().date() - cache.last_update.date()).days >= 1
     ):
-        update_cache(context)
+        await update_cache(context)
+        cache = context.chat_data.get("cache", cache)
 
     message = upcoming_events_header
-    if len(cache.events) == 0:
+    if not cache.events:
         message += no_upcoming_events_message
     else:
         for event in cache.events:
@@ -569,12 +589,15 @@ def get_rave_message(context: ContextTypes.DEFAULT_TYPE):
     return message
 
 
-def update_cache(context: ContextTypes.DEFAULT_TYPE):
-    events = get_events()
+async def update_cache(context: ContextTypes.DEFAULT_TYPE):
+    events = await asyncio.to_thread(get_events)
+    if events is None:
+        logger.warning("API failure, keeping existing cache")
+        return
     cache = context.chat_data.get("cache", Cache(datetime.datetime.now(), []))
     cache.update(events)
     context.chat_data["cache"] = cache
-    logger.info("Cache updated")
+    logger.info(f"Cache updated with {len(events)} events")
 
 
 async def warn_idle(context: ContextTypes.DEFAULT_TYPE):
@@ -758,6 +781,22 @@ if __name__ == "__main__":
         )
 
     application.add_error_handler(error_handler)
+
+    # Restore scheduled jobs from persisted state
+    async def post_init(application):
+        update_timers = application.bot_data.get("update_timers", {})
+        for chat_id, enabled in update_timers.items():
+            if enabled:
+                application.job_queue.run_repeating(
+                    update_announcement_timer,
+                    interval=1 * 60 * 60,
+                    first=60,
+                    chat_id=chat_id,
+                    name=f"update_{chat_id}",
+                )
+                logger.info(f"Restored hourly update timer for chat {chat_id}")
+
+    application.post_init = post_init
 
     logger.info("All handlers registered. Starting polling...")
     application.run_polling(drop_pending_updates=True, allowed_updates=Update.ALL_TYPES)
