@@ -39,3 +39,9 @@ duplicate_event_message = "А такой ивент у нас уже есть."
 duplicate_event_create_button_text = "Создать ивент"
 
 duplicate_event_skip_button_text = "Не создавать ивент"
+
+configured_announcement_set_message = (
+    "Автообновление закрепленного анонса управляется настройками деплоя и уже включено."
+)
+
+configured_announcement_unset_message = "Автообновление закрепленного анонса управляется настройками деплоя и не отключается через /unset."

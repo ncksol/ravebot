@@ -52,6 +52,8 @@ from text import (
     duplicate_event_skip_button_text,
     invalid_url_scheme_message,
     malformed_url_message,
+    configured_announcement_set_message,
+    configured_announcement_unset_message,
 )
 
 # Track bot start time for uptime calculation
@@ -180,9 +182,7 @@ async def set_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         remove_job_if_exists(f"update_{chat_id}", context)
         register_configured_announcement_job(context.application)
         context.bot_data.get("update_timers", {}).pop(chat_id, None)
-        await update.effective_message.reply_text(
-            "Configured announcement updater is managed by deployment and is active."
-        )
+        await update.effective_message.reply_text(configured_announcement_set_message)
         return
 
     job_removed = remove_job_if_exists(f"update_{chat_id}", context)
@@ -212,6 +212,10 @@ async def unset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     chat_id = update.effective_message.chat_id
+    if chat_id == AnnouncementConfiguration.chat_id:
+        await update.effective_message.reply_text(configured_announcement_unset_message)
+        return
+
     job_removed = remove_job_if_exists(f"update_{chat_id}", context)
     context.bot_data.get("update_timers", {}).pop(chat_id, None)
     text = (

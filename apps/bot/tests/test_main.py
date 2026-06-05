@@ -282,7 +282,35 @@ class TestCommandHandlers:
                 await set_command(update, context)
 
         manual_job.schedule_removal.assert_called_once()
+        from text import configured_announcement_set_message
+
         update.effective_message.reply_text.assert_called_once_with(
-            "Configured announcement updater is managed by deployment and is active."
+            configured_announcement_set_message
         )
         assert configured_chat_id not in context.bot_data["update_timers"]
+
+    @pytest.mark.asyncio
+    async def test_unset_command_configured_chat(self):
+        """Test unset_command when chat_id equals configured announcement chat"""
+        from main import unset_command
+        from text import configured_announcement_unset_message
+
+        configured_chat_id = -1001234567890
+
+        update = MagicMock()
+        update.message.date = datetime.datetime.now(datetime.timezone.utc)
+        update.effective_user.id = 12345
+        update.effective_message.chat_id = configured_chat_id
+        update.effective_message.reply_text = AsyncMock()
+
+        context = MagicMock()
+        context.bot_data = {"update_timers": {configured_chat_id: True}}
+
+        with patch("main.BotConfiguration.admin_id", 12345):
+            with patch("main.AnnouncementConfiguration.chat_id", configured_chat_id):
+                await unset_command(update, context)
+
+        update.effective_message.reply_text.assert_called_once_with(
+            configured_announcement_unset_message
+        )
+        context.job_queue.get_jobs_by_name.assert_not_called()
