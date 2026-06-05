@@ -2,6 +2,7 @@ import asyncio
 import datetime
 import os
 from collections import defaultdict
+from collections.abc import Mapping
 import threading
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -479,17 +480,12 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Use configured announcement chat data if available, otherwise current chat data
     status_chat_data = context.chat_data
     if AnnouncementConfiguration.chat_id is not None:
-        try:
-            from collections.abc import Mapping
-
-            app_chat_data = context.application.chat_data
-            if (
-                isinstance(app_chat_data, Mapping)
-                and AnnouncementConfiguration.chat_id in app_chat_data
-            ):
-                status_chat_data = app_chat_data[AnnouncementConfiguration.chat_id]
-        except (AttributeError, TypeError, KeyError):
-            pass
+        application = getattr(context, "application", None)
+        app_chat_data = getattr(application, "chat_data", None)
+        if isinstance(app_chat_data, Mapping):
+            configured_chat_data = app_chat_data.get(AnnouncementConfiguration.chat_id)
+            if isinstance(configured_chat_data, Mapping):
+                status_chat_data = configured_chat_data
 
     # Check cache status
     cache = status_chat_data.get("cache", None)
