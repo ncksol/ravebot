@@ -53,3 +53,4 @@ class AnnouncementConfiguration:
     chat_id = int(chat_id_value) if chat_id_value else None
     interval_seconds = int(config_env.get("ANNOUNCEMENT_INTERVAL_SECONDS", "3600"))
     first_run_seconds = int(config_env.get("ANNOUNCEMENT_FIRST_RUN_SECONDS", "60"))
+    del chat_id_value

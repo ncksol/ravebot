@@ -53,3 +53,16 @@ def test_announcement_configuration_parses_environment(monkeypatch):
     assert settings.AnnouncementConfiguration.chat_id == -1001234567890
     assert settings.AnnouncementConfiguration.interval_seconds == 1800
     assert settings.AnnouncementConfiguration.first_run_seconds == 15
+
+
+def test_announcement_configuration_chat_id_empty_string_results_in_none(monkeypatch):
+    settings = reload_settings(monkeypatch, announcement_chat_id="")
+
+    assert settings.AnnouncementConfiguration.chat_id is None
+
+
+def test_announcement_configuration_malformed_integer_raises_value_error(monkeypatch):
+    import pytest
+
+    with pytest.raises(ValueError):
+        reload_settings(monkeypatch, interval="not-a-number")
