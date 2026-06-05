@@ -110,6 +110,9 @@ The project consists of two main components:
 | `TEAMUP_CALENDAR_READER_KEY` | TeamUp reader key for public calendar access |
 | `TEAMUP_SUBCALENDAR_ID` | Specific subcalendar ID to use |
 | `RA_QUERY_TEMPLATE_PATH` | Path to GraphQL query template file (default: `graphql_query_template.json`) |
+| `ANNOUNCEMENT_CHAT_ID` | Telegram chat ID for the production pinned weekly events announcement |
+| `ANNOUNCEMENT_INTERVAL_SECONDS` | Optional interval for automatic announcement updates; defaults to `3600` |
+| `ANNOUNCEMENT_FIRST_RUN_SECONDS` | Optional startup delay before the first automatic announcement update; defaults to `60` |
 
 ### Required for Updater
 
