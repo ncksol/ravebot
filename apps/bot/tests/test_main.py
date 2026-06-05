@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 import datetime
 from telegram import Update, User, Chat, Message
-from telegram.error import BadRequest
+from telegram.error import BadRequest, TelegramError
 from telegram.ext import ContextTypes
 from main import (
     get_configured_announcement_job_name,
@@ -102,7 +102,9 @@ class TestConfiguredAnnouncementJob:
 class TestUpdateAnnouncement:
     @pytest.mark.asyncio
     @patch("main.get_rave_message", new_callable=AsyncMock)
-    async def test_update_announcement_edits_existing_message(self, mock_get_rave_message):
+    async def test_update_announcement_edits_existing_message(
+        self, mock_get_rave_message
+    ):
         from main import LAST_ANNOUNCEMENT_UPDATE_KEY, update_announcement
 
         mock_get_rave_message.return_value = "<b>Upcoming events</b>"
@@ -145,7 +147,9 @@ class TestUpdateAnnouncement:
         context.bot.send_message.assert_not_called()
         assert context.chat_data["announcement_id"] == 111
         assert context.bot_data[LAST_ANNOUNCEMENT_UPDATE_KEY]["outcome"] == "success"
-        assert "not modified" in context.bot_data[LAST_ANNOUNCEMENT_UPDATE_KEY]["reason"]
+        assert (
+            "not modified" in context.bot_data[LAST_ANNOUNCEMENT_UPDATE_KEY]["reason"]
+        )
 
     @pytest.mark.asyncio
     @patch("main.get_rave_message", new_callable=AsyncMock)
@@ -203,6 +207,61 @@ class TestUpdateAnnouncement:
         context.bot.send_message.assert_not_called()
         assert context.chat_data["announcement_id"] == 111
         assert context.bot_data[LAST_ANNOUNCEMENT_UPDATE_KEY]["outcome"] == "failure"
+
+    @pytest.mark.asyncio
+    @patch("main.get_rave_message", new_callable=AsyncMock)
+    async def test_update_announcement_records_failure_when_send_message_raises(
+        self, mock_get_rave_message
+    ):
+        from main import LAST_ANNOUNCEMENT_UPDATE_KEY, update_announcement
+
+        mock_get_rave_message.return_value = "<b>Upcoming events</b>"
+        context = MagicMock()
+        context.chat_data = {"announcement_id": 111}
+        context.bot_data = {}
+        context.bot.edit_message_text = AsyncMock(
+            side_effect=BadRequest("Message to edit not found")
+        )
+        context.bot.send_message = AsyncMock(side_effect=TelegramError("Network error"))
+
+        await update_announcement(context, -1001234567890)
+
+        context.bot.send_message.assert_called_once()
+        assert context.chat_data["announcement_id"] == 111
+        assert context.bot_data[LAST_ANNOUNCEMENT_UPDATE_KEY]["outcome"] == "failure"
+        assert (
+            "create failed" in context.bot_data[LAST_ANNOUNCEMENT_UPDATE_KEY]["reason"]
+        )
+
+    @pytest.mark.asyncio
+    @patch("main.get_rave_message", new_callable=AsyncMock)
+    async def test_update_announcement_records_failure_and_keeps_new_id_when_pin_raises(
+        self, mock_get_rave_message
+    ):
+        from main import LAST_ANNOUNCEMENT_UPDATE_KEY, update_announcement
+
+        mock_get_rave_message.return_value = "<b>Upcoming events</b>"
+        new_message = MagicMock()
+        new_message.message_id = 222
+        new_message.pin = AsyncMock(side_effect=TelegramError("Can't pin"))
+
+        context = MagicMock()
+        context.chat_data = {"announcement_id": 111}
+        context.bot_data = {}
+        context.bot.edit_message_text = AsyncMock(
+            side_effect=BadRequest("Message to edit not found")
+        )
+        context.bot.send_message = AsyncMock(return_value=new_message)
+        context.bot.unpin_chat_message = AsyncMock()
+        context.bot.delete_message = AsyncMock()
+
+        await update_announcement(context, -1001234567890)
+
+        assert context.chat_data["announcement_id"] == 222
+        assert context.bot_data[LAST_ANNOUNCEMENT_UPDATE_KEY]["outcome"] == "failure"
+        assert "pin failed" in context.bot_data[LAST_ANNOUNCEMENT_UPDATE_KEY]["reason"]
+        context.bot.unpin_chat_message.assert_not_called()
+        context.bot.delete_message.assert_not_called()
 
 
 class TestUpdateCache:

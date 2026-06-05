@@ -652,8 +652,12 @@ async def update_announcement(context: ContextTypes.DEFAULT_TYPE, chat_id: int):
                 context, "failure", f"create failed: {e.message}"
             )
             return
+        # Store the new ID now so the next run edits it even if pinning fails.
+        context.chat_data["announcement_id"] = msg_object.message_id
 
     if msg_object is not None:
+        # Pin defensively on every update: re-pins the message if an admin manually
+        # unpinned it, and pins a freshly created replacement message.
         try:
             await msg_object.pin(disable_notification=True)
         except TelegramError as e:
