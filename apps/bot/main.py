@@ -21,7 +21,7 @@ from telegram.constants import MessageEntityType
 from ra import process_ra_event
 from dice import process_dice_event
 from models import Cache
-from settings import BotConfiguration, ENVIRONMENT
+from settings import BotConfiguration, ENVIRONMENT, AnnouncementConfiguration
 from events_calendar import (
     get_calendar_link,
     get_events,
@@ -175,6 +175,14 @@ async def set_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     chat_id = update.effective_message.chat_id
+    if chat_id == AnnouncementConfiguration.chat_id:
+        register_configured_announcement_job(context.application)
+        context.bot_data.get("update_timers", {}).pop(chat_id, None)
+        await update.effective_message.reply_text(
+            "Configured announcement updater is managed by deployment and is active."
+        )
+        return
+
     job_removed = remove_job_if_exists(f"update_{chat_id}", context)
     context.job_queue.run_repeating(
         update_announcement_timer,
@@ -493,6 +501,51 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.effective_message.reply_html(status_message)
 
 
+def get_configured_announcement_job_name(chat_id: int) -> str:
+    return f"configured_update_{chat_id}"
+
+
+def register_configured_announcement_job(
+    application,
+    chat_id: int | None = None,
+    interval_seconds: int | None = None,
+    first_run_seconds: int | None = None,
+) -> bool:
+    configured_chat_id = (
+       AnnouncementConfiguration.chat_id if chat_id is None else chat_id
+    )
+    if configured_chat_id is None:
+       logger.warning("ANNOUNCEMENT_CHAT_ID is not configured; announcement updater not scheduled")
+       return False
+
+    configured_interval = (
+       AnnouncementConfiguration.interval_seconds
+       if interval_seconds is None
+       else interval_seconds
+    )
+    configured_first_run = (
+       AnnouncementConfiguration.first_run_seconds
+       if first_run_seconds is None
+       else first_run_seconds
+    )
+    job_name = get_configured_announcement_job_name(configured_chat_id)
+
+    for job in application.job_queue.get_jobs_by_name(job_name):
+       job.schedule_removal()
+
+    application.job_queue.run_repeating(
+       update_announcement_timer,
+       interval=configured_interval,
+       first=configured_first_run,
+       chat_id=configured_chat_id,
+       name=job_name,
+    )
+    logger.warning(
+       f"Configured announcement updater scheduled for chat {configured_chat_id}"
+    )
+    return True
+
+
 def remove_job_if_exists(name: str, context: ContextTypes.DEFAULT_TYPE) -> bool:
     current_jobs = context.job_queue.get_jobs_by_name(name)
     if not current_jobs:
@@ -782,11 +835,13 @@ if __name__ == "__main__":
 
     application.add_error_handler(error_handler)
 
-    # Restore scheduled jobs from persisted state
+    # Restore configured and manually enabled scheduled jobs
     async def post_init(application):
+        register_configured_announcement_job(application)
+
         update_timers = application.bot_data.get("update_timers", {})
         for chat_id, enabled in update_timers.items():
-            if enabled:
+            if enabled and chat_id != AnnouncementConfiguration.chat_id:
                 application.job_queue.run_repeating(
                     update_announcement_timer,
                     interval=1 * 60 * 60,
@@ -794,7 +849,7 @@ if __name__ == "__main__":
                     chat_id=chat_id,
                     name=f"update_{chat_id}",
                 )
-                logger.info(f"Restored hourly update timer for chat {chat_id}")
+                logger.warning(f"Restored manual hourly update timer for chat {chat_id}")
 
     application.post_init = post_init
 

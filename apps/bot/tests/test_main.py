@@ -3,7 +3,15 @@ from unittest.mock import MagicMock, AsyncMock, patch
 import datetime
 from telegram import Update, User, Chat, Message
 from telegram.ext import ContextTypes
-from main import remove_job_if_exists, get_rave_message, update_cache, is_old_command
+from main import (
+    get_configured_announcement_job_name,
+    register_configured_announcement_job,
+    remove_job_if_exists,
+    get_rave_message,
+    update_cache,
+    is_old_command,
+    update_announcement_timer,
+)
 from models import Cache, Event
 
 
@@ -40,6 +48,48 @@ class TestRemoveJobIfExists:
         assert result is True
         mock_job1.schedule_removal.assert_called_once()
         mock_job2.schedule_removal.assert_called_once()
+
+
+class TestConfiguredAnnouncementJob:
+    def test_get_configured_announcement_job_name(self):
+        assert get_configured_announcement_job_name(-1001234567890) == "configured_update_-1001234567890"
+
+    def test_register_configured_announcement_job_skips_when_chat_not_configured(self, monkeypatch):
+        import main
+
+        monkeypatch.setattr(main.AnnouncementConfiguration, "chat_id", None)
+        application = MagicMock()
+
+        result = register_configured_announcement_job(application)
+
+        assert result is False
+        application.job_queue.get_jobs_by_name.assert_not_called()
+        application.job_queue.run_repeating.assert_not_called()
+
+    def test_register_configured_announcement_job_is_idempotent(self):
+        application = MagicMock()
+        existing_job = MagicMock()
+        application.job_queue.get_jobs_by_name.return_value = [existing_job]
+
+        result = register_configured_announcement_job(
+            application,
+            chat_id=-1001234567890,
+            interval_seconds=1800,
+            first_run_seconds=15,
+        )
+
+        assert result is True
+        existing_job.schedule_removal.assert_called_once()
+        application.job_queue.get_jobs_by_name.assert_called_once_with(
+            "configured_update_-1001234567890"
+        )
+        application.job_queue.run_repeating.assert_called_once_with(
+            update_announcement_timer,
+            interval=1800,
+            first=15,
+            chat_id=-1001234567890,
+            name="configured_update_-1001234567890",
+        )
 
 
 class TestUpdateCache:
