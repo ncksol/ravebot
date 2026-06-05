@@ -1,7 +1,9 @@
 import importlib
 
 
-def reload_settings(monkeypatch, announcement_chat_id=None, interval=None, first_run=None):
+def reload_settings(
+    monkeypatch, announcement_chat_id=None, interval=None, first_run=None
+):
     required_env = {
         "BOT_TOKEN": "dummy-token",
         "ADMIN_ID": "123456",
