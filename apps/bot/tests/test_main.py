@@ -287,6 +287,7 @@ class TestCommandHandlers:
         update.effective_message.reply_text.assert_called_once_with(
             configured_announcement_set_message
         )
+        context.application.job_queue.run_repeating.assert_called_once()
         assert configured_chat_id not in context.bot_data["update_timers"]
 
     @pytest.mark.asyncio
