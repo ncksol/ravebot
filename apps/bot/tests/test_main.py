@@ -292,7 +292,9 @@ class TestUpdateCache:
 
     @pytest.mark.asyncio
     @patch("main.get_events")
-    async def test_update_cache_keeps_existing_cache_on_api_failure(self, mock_get_events):
+    async def test_update_cache_keeps_existing_cache_on_api_failure(
+        self, mock_get_events
+    ):
         existing_events = [
             Event(
                 title="Existing Event",
@@ -335,7 +337,10 @@ class TestUpdateCache:
 
         assert context.chat_data["cache"] is existing_cache
         assert context.chat_data["cache"].events == []
-        assert context.chat_data["cache"].last_update.date() == datetime.datetime.now().date()
+        assert (
+            context.chat_data["cache"].last_update.date()
+            == datetime.datetime.now().date()
+        )
 
 
 class TestGetRaveMessage:
@@ -532,7 +537,11 @@ class TestCommandHandlers:
     @pytest.mark.asyncio
     async def test_status_command_reports_announcement_configuration(self, monkeypatch):
         import main
-        from main import LAST_ANNOUNCEMENT_UPDATE_KEY, status_command
+        from main import (
+            LAST_ANNOUNCEMENT_UPDATE_KEY,
+            status_command,
+            get_configured_announcement_job_name,
+        )
 
         monkeypatch.setattr(main.BotConfiguration, "admin_id", 123456)
         monkeypatch.setattr(main.AnnouncementConfiguration, "chat_id", -1001234567890)
@@ -543,9 +552,13 @@ class TestCommandHandlers:
         update.effective_message.reply_html = AsyncMock()
 
         context = MagicMock()
-        context.chat_data = {
-            "announcement_id": 222,
-            "cache": Cache(datetime.datetime.now(), []),
+        # Status invoked from outside announcement chat, so use application.chat_data
+        context.chat_data = {}
+        context.application.chat_data = {
+            -1001234567890: {
+                "announcement_id": 222,
+                "cache": Cache(datetime.datetime.now(), []),
+            }
         }
         context.bot_data = {
             LAST_ANNOUNCEMENT_UPDATE_KEY: {
@@ -563,4 +576,65 @@ class TestCommandHandlers:
         assert "📌 Announcement config: Enabled" in status_text
         assert "📌 Announcement job: Active" in status_text
         assert "📌 Announcement message: 222" in status_text
-        assert "🧾 Last announcement update: success at 2026-06-05 10:00:00" in status_text
+        assert (
+            "🧾 Last announcement update: success at 2026-06-05 10:00:00" in status_text
+        )
+
+        # Verify that get_jobs_by_name was called with the right job name
+        context.job_queue.get_jobs_by_name.assert_called_with(
+            get_configured_announcement_job_name(-1001234567890)
+        )
+
+    @pytest.mark.asyncio
+    async def test_status_command_with_disabled_announcement(self, monkeypatch):
+        import main
+        from main import status_command
+
+        monkeypatch.setattr(main.BotConfiguration, "admin_id", 123456)
+        monkeypatch.setattr(main.AnnouncementConfiguration, "chat_id", None)
+
+        update = MagicMock()
+        update.message.date = datetime.datetime.now(datetime.timezone.utc)
+        update.effective_user.id = 123456
+        update.effective_message.reply_html = AsyncMock()
+
+        context = MagicMock()
+        context.chat_data = {"cache": Cache(datetime.datetime.now(), [])}
+        context.bot_data = {}
+        context.job_queue.jobs.return_value = [MagicMock()]
+
+        await status_command(update, context)
+
+        status_text = update.effective_message.reply_html.call_args.args[0]
+        assert "📌 Announcement config: Disabled" in status_text
+        assert "📌 Announcement job: Inactive" in status_text
+        assert "🧾 Last announcement update: Not recorded" in status_text
+
+    @pytest.mark.asyncio
+    async def test_status_command_with_malformed_last_update(self, monkeypatch):
+        import main
+        from main import LAST_ANNOUNCEMENT_UPDATE_KEY, status_command
+
+        monkeypatch.setattr(main.BotConfiguration, "admin_id", 123456)
+        monkeypatch.setattr(main.AnnouncementConfiguration, "chat_id", None)
+
+        update = MagicMock()
+        update.message.date = datetime.datetime.now(datetime.timezone.utc)
+        update.effective_user.id = 123456
+        update.effective_message.reply_html = AsyncMock()
+
+        context = MagicMock()
+        context.chat_data = {"cache": Cache(datetime.datetime.now(), [])}
+        # Malformed: missing "timestamp" key
+        context.bot_data = {
+            LAST_ANNOUNCEMENT_UPDATE_KEY: {
+                "outcome": "failure",
+            }
+        }
+        context.job_queue.jobs.return_value = [MagicMock()]
+
+        await status_command(update, context)
+
+        status_text = update.effective_message.reply_html.call_args.args[0]
+        # Should still show the outcome and use "unknown" for missing timestamp
+        assert "🧾 Last announcement update: failure at unknown" in status_text

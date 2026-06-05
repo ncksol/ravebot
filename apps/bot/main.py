@@ -59,15 +59,14 @@ from text import (
 # Track bot start time for uptime calculation
 bot_start_time = datetime.datetime.now(datetime.timezone.utc)
 
+# Announcement update tracking key
+LAST_ANNOUNCEMENT_UPDATE_KEY = "last_announcement_update"
 
 # Rate limiting configuration
 RATE_LIMIT_WINDOW = 60  # 1 minute window
 RATE_LIMIT_MAX_REQUESTS = 3  # Max 3 requests per minute per user
 rate_limit_tracker = defaultdict(list)
 rate_limit_lock = threading.Lock()  # Thread-safe lock for rate limiting
-
-# Track bot start time for uptime calculation
-bot_start_time = datetime.datetime.now(datetime.timezone.utc)
 
 
 async def rave_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -476,8 +475,24 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     minutes, seconds = divmod(remainder, 60)
     status_message += f"⏱️ Uptime: {hours}h {minutes}m {seconds}s\n"
 
+    # Determine where to read announcement data from
+    # Use configured announcement chat data if available, otherwise current chat data
+    status_chat_data = context.chat_data
+    if AnnouncementConfiguration.chat_id is not None:
+        try:
+            from collections.abc import Mapping
+
+            app_chat_data = context.application.chat_data
+            if (
+                isinstance(app_chat_data, Mapping)
+                and AnnouncementConfiguration.chat_id in app_chat_data
+            ):
+                status_chat_data = app_chat_data[AnnouncementConfiguration.chat_id]
+        except (AttributeError, TypeError, KeyError):
+            pass
+
     # Check cache status
-    cache = context.chat_data.get("cache", None)
+    cache = status_chat_data.get("cache", None)
     if cache:
         status_message += f"💾 Cache: {len(cache.events)} events loaded\n"
         status_message += (
@@ -498,7 +513,7 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         announcement_job_status = "Active" if configured_jobs else "Inactive"
         status_message += f"📌 Announcement job: {announcement_job_status}\n"
 
-    announcement_id = context.chat_data.get("announcement_id")
+    announcement_id = status_chat_data.get("announcement_id")
     if announcement_id is None:
         status_message += "📌 Announcement message: Not initialized\n"
     else:
@@ -506,11 +521,9 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     last_announcement_update = context.bot_data.get(LAST_ANNOUNCEMENT_UPDATE_KEY)
     if last_announcement_update:
-        status_message += (
-            "🧾 Last announcement update: "
-            f"{last_announcement_update['outcome']} at "
-            f"{last_announcement_update['timestamp']}"
-        )
+        outcome = last_announcement_update.get("outcome", "unknown")
+        timestamp = last_announcement_update.get("timestamp", "unknown")
+        status_message += "🧾 Last announcement update: " f"{outcome} at {timestamp}"
         if last_announcement_update.get("reason"):
             status_message += f" ({last_announcement_update['reason']})"
         status_message += "\n"
@@ -594,7 +607,6 @@ def remove_job_if_exists(name: str, context: ContextTypes.DEFAULT_TYPE) -> bool:
     return True
 
 
-LAST_ANNOUNCEMENT_UPDATE_KEY = "last_announcement_update"
 RECOVERABLE_ANNOUNCEMENT_EDIT_ERRORS = (
     "message to edit not found",
     "message not found",
