@@ -141,15 +141,45 @@ class TestUpdateAnnouncement:
             side_effect=BadRequest("Message is not modified")
         )
         context.bot.send_message = AsyncMock()
+        context.bot.pin_chat_message = AsyncMock()
 
         await update_announcement(context, -1001234567890)
 
         context.bot.send_message.assert_not_called()
+        context.bot.pin_chat_message.assert_called_once_with(
+            chat_id=-1001234567890,
+            message_id=111,
+            disable_notification=True,
+        )
         assert context.chat_data["announcement_id"] == 111
         assert context.bot_data[LAST_ANNOUNCEMENT_UPDATE_KEY]["outcome"] == "success"
         assert (
             "not modified" in context.bot_data[LAST_ANNOUNCEMENT_UPDATE_KEY]["reason"]
         )
+
+    @pytest.mark.asyncio
+    @patch("main.get_rave_message", new_callable=AsyncMock)
+    async def test_update_announcement_records_failure_when_unchanged_pin_raises(
+        self, mock_get_rave_message
+    ):
+        from main import LAST_ANNOUNCEMENT_UPDATE_KEY, update_announcement
+
+        mock_get_rave_message.return_value = "<b>Upcoming events</b>"
+        context = MagicMock()
+        context.chat_data = {"announcement_id": 111}
+        context.bot_data = {}
+        context.bot.edit_message_text = AsyncMock(
+            side_effect=BadRequest("Message is not modified")
+        )
+        context.bot.send_message = AsyncMock()
+        context.bot.pin_chat_message = AsyncMock(side_effect=TelegramError("Can't pin"))
+
+        await update_announcement(context, -1001234567890)
+
+        context.bot.send_message.assert_not_called()
+        assert context.chat_data["announcement_id"] == 111
+        assert context.bot_data[LAST_ANNOUNCEMENT_UPDATE_KEY]["outcome"] == "failure"
+        assert "pin failed" in context.bot_data[LAST_ANNOUNCEMENT_UPDATE_KEY]["reason"]
 
     @pytest.mark.asyncio
     @patch("main.get_rave_message", new_callable=AsyncMock)

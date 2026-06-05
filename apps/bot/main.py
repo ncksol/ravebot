@@ -661,7 +661,21 @@ async def update_announcement(context: ContextTypes.DEFAULT_TYPE, chat_id: int):
             )
         except BadRequest as e:
             if "Message is not modified" in e.message:
-                logger.info("Nothing changed. Quitting...")
+                logger.info("Nothing changed. Re-pinning existing announcement...")
+                try:
+                    await context.bot.pin_chat_message(
+                        chat_id=chat_id,
+                        message_id=old_announcement_id,
+                        disable_notification=True,
+                    )
+                except TelegramError as pin_error:
+                    logger.error(
+                        f"Failed to pin unchanged announcement message: {pin_error.message}"
+                    )
+                    record_announcement_update_status(
+                        context, "failure", f"pin failed: {pin_error.message}"
+                    )
+                    return
                 record_announcement_update_status(
                     context, "success", "message not modified"
                 )
