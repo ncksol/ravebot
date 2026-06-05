@@ -17,6 +17,11 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' ||
       github.event.workflow_run.conclusion == 'success'
+    env:
+      RESOURCE_GROUP: ravebot-rg
+      CONTAINER_APP_NAME: ravebot
+      ACR_REGISTRY: ravebotacr.azurecr.io
+      IMAGE_NAME: ravebot
 
     steps:
       - uses: actions/checkout@v4
@@ -38,6 +43,16 @@ jobs:
           echo "Next version: $NEXT"
           echo "version=$NEXT" >> "$GITHUB_OUTPUT"
 
+      - name: Validate deployment prerequisites
+        env:
+          ANNOUNCEMENT_CHAT_ID: ${{ secrets.ANNOUNCEMENT_CHAT_ID }}
+        run: |
+          if [ -z "$ANNOUNCEMENT_CHAT_ID" ]; then
+            echo "::error::ANNOUNCEMENT_CHAT_ID secret is required for production announcement updates"
+            exit 1
+          fi
+          echo "✓ ANNOUNCEMENT_CHAT_ID is configured"
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -55,7 +70,7 @@ jobs:
       - name: Login to Azure Container Registry
         uses: azure/docker-login@v2
         with:
-          login-server: ravebotacr.azurecr.io
+          login-server: ${{ env.ACR_REGISTRY }}
           username: ${{ secrets.ACR_USERNAME }}
           password: ${{ secrets.ACR_PASSWORD }}
 
@@ -63,15 +78,19 @@ jobs:
         run: |
           docker build \
             --build-arg APP_VERSION=${{ steps.version.outputs.version }} \
-            -t ravebotacr.azurecr.io/ravebot:${{ github.sha }} \
-            -t ravebotacr.azurecr.io/ravebot:latest \
+            -t ${{ env.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            -t ${{ env.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
             ./apps/bot
-          docker push ravebotacr.azurecr.io/ravebot:${{ github.sha }}
-          docker push ravebotacr.azurecr.io/ravebot:latest
+          docker push ${{ env.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          docker push ${{ env.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
       - name: Deploy to Azure Container Apps
         uses: azure/container-apps-deploy-action@v2
         with:
-          resourceGroup: ravebot-rg
-          containerAppName: ravebot
-          imageToDeploy: ravebotacr.azurecr.io/ravebot:${{ github.sha }}
+          resourceGroup: ${{ env.RESOURCE_GROUP }}
+          containerAppName: ${{ env.CONTAINER_APP_NAME }}
+          imageToDeploy: ${{ env.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          environmentVariables: |
+            ANNOUNCEMENT_CHAT_ID=${{ secrets.ANNOUNCEMENT_CHAT_ID }}
+            ANNOUNCEMENT_INTERVAL_SECONDS=3600
+            ANNOUNCEMENT_FIRST_RUN_SECONDS=60

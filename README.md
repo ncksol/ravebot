@@ -125,6 +125,8 @@ The project consists of two main components:
 
 The bot is deployed to **Azure Container Apps** via a manual GitHub Actions workflow (`.github/workflows/azure-deploy.yml`). It builds a Docker image, pushes to Azure Container Registry, and deploys to Container Apps.
 
+Production announcement updates are configured at deployment time. Set the GitHub Actions secret `ANNOUNCEMENT_CHAT_ID` to the Telegram chat ID whose pinned weekly events message should be managed. The deploy workflow validates that this secret is configured before building or deploying, then applies it to the Container App as an environment variable along with `ANNOUNCEMENT_INTERVAL_SECONDS=3600` and `ANNOUNCEMENT_FIRST_RUN_SECONDS=60` as part of the image deployment in a single revision.
+
 ## Bot Commands
 
 ### User Commands
