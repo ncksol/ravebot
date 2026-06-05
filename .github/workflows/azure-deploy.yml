@@ -45,13 +45,64 @@ jobs:
 
       - name: Validate deployment prerequisites
         env:
+          AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+          ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          ADMIN_ID: ${{ secrets.ADMIN_ID }}
+          TEAMUP_API_KEY: ${{ secrets.TEAMUP_API_KEY }}
+          TEAMUP_CALENDAR_KEY: ${{ secrets.TEAMUP_CALENDAR_KEY }}
+          TEAMUP_CALENDAR_READER_KEY: ${{ secrets.TEAMUP_CALENDAR_READER_KEY }}
+          TEAMUP_SUBCALENDAR_ID: ${{ secrets.TEAMUP_SUBCALENDAR_ID }}
           ANNOUNCEMENT_CHAT_ID: ${{ secrets.ANNOUNCEMENT_CHAT_ID }}
+          ANNOUNCEMENT_INTERVAL_SECONDS: ${{ vars.ANNOUNCEMENT_INTERVAL_SECONDS || '3600' }}
+          ANNOUNCEMENT_FIRST_RUN_SECONDS: ${{ vars.ANNOUNCEMENT_FIRST_RUN_SECONDS || '60' }}
         run: |
-          if [ -z "$ANNOUNCEMENT_CHAT_ID" ]; then
-            echo "::error::ANNOUNCEMENT_CHAT_ID secret is required for production announcement updates"
+          missing=0
+          for name in \
+            AZURE_CREDENTIALS \
+            ACR_USERNAME \
+            ACR_PASSWORD \
+            BOT_TOKEN \
+            ADMIN_ID \
+            TEAMUP_API_KEY \
+            TEAMUP_CALENDAR_KEY \
+            TEAMUP_CALENDAR_READER_KEY \
+            TEAMUP_SUBCALENDAR_ID \
+            ANNOUNCEMENT_CHAT_ID
+          do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name secret is required for production deployment"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
             exit 1
           fi
-          echo "ANNOUNCEMENT_CHAT_ID is configured"
+
+          python - <<'PY'
+          import os
+          import sys
+
+          integer_values = (
+              "ADMIN_ID",
+              "ANNOUNCEMENT_CHAT_ID",
+              "ANNOUNCEMENT_INTERVAL_SECONDS",
+              "ANNOUNCEMENT_FIRST_RUN_SECONDS",
+          )
+          failed = False
+          for name in integer_values:
+              try:
+                  int(os.environ[name])
+              except ValueError:
+                  print(f"::error::{name} must be an integer")
+                  failed = True
+
+          if failed:
+              sys.exit(1)
+          PY
+
+          echo "Deployment prerequisites are configured"
 
       - name: Create GitHub Release
         env:
@@ -91,6 +142,16 @@ jobs:
           containerAppName: ${{ env.CONTAINER_APP_NAME }}
           imageToDeploy: ${{ env.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
           environmentVariables: >-
+            ENVIRONMENT=prod
+            BOT_TOKEN=${{ secrets.BOT_TOKEN }}
+            ADMIN_ID=${{ secrets.ADMIN_ID }}
+            TEAMUP_API_KEY=${{ secrets.TEAMUP_API_KEY }}
+            TEAMUP_CALENDAR_KEY=${{ secrets.TEAMUP_CALENDAR_KEY }}
+            TEAMUP_CALENDAR_READER_KEY=${{ secrets.TEAMUP_CALENDAR_READER_KEY }}
+            TEAMUP_SUBCALENDAR_ID=${{ secrets.TEAMUP_SUBCALENDAR_ID }}
+            RA_QUERY_TEMPLATE_PATH=graphql_query_template.json
+            CALENDAR_TIMEZONE=${{ vars.CALENDAR_TIMEZONE || 'Europe/London' }}
+            LOG_JSON_FORMAT=${{ vars.LOG_JSON_FORMAT || 'false' }}
             ANNOUNCEMENT_CHAT_ID=${{ secrets.ANNOUNCEMENT_CHAT_ID }}
-            ANNOUNCEMENT_INTERVAL_SECONDS=3600
-            ANNOUNCEMENT_FIRST_RUN_SECONDS=60
+            ANNOUNCEMENT_INTERVAL_SECONDS=${{ vars.ANNOUNCEMENT_INTERVAL_SECONDS || '3600' }}
+            ANNOUNCEMENT_FIRST_RUN_SECONDS=${{ vars.ANNOUNCEMENT_FIRST_RUN_SECONDS || '60' }}

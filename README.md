@@ -125,7 +125,7 @@ The project consists of two main components:
 
 The bot is deployed to **Azure Container Apps** via a manual GitHub Actions workflow (`.github/workflows/azure-deploy.yml`). It builds a Docker image, pushes to Azure Container Registry, and deploys to Container Apps.
 
-Production announcement updates are configured at deployment time. Set the GitHub Actions secret `ANNOUNCEMENT_CHAT_ID` to the Telegram chat ID whose pinned weekly events message should be managed. The deploy workflow validates that this secret is configured before building or deploying, then applies it to the Container App as an environment variable along with `ANNOUNCEMENT_INTERVAL_SECONDS=3600` and `ANNOUNCEMENT_FIRST_RUN_SECONDS=60` as part of the image deployment in a single revision.
+Production runtime configuration is owned by GitHub Actions secrets because the Azure deploy action replaces the Container App environment variable set on update. Configure these repository secrets before deploying: `AZURE_CREDENTIALS`, `ACR_USERNAME`, `ACR_PASSWORD`, `BOT_TOKEN`, `ADMIN_ID`, `TEAMUP_API_KEY`, `TEAMUP_CALENDAR_KEY`, `TEAMUP_CALENDAR_READER_KEY`, `TEAMUP_SUBCALENDAR_ID`, and `ANNOUNCEMENT_CHAT_ID`. `ANNOUNCEMENT_CHAT_ID` is the Telegram chat ID whose pinned weekly events message should be managed. The workflow validates these secrets before creating a release, building, or deploying, then applies them together with production defaults such as `RA_QUERY_TEMPLATE_PATH=graphql_query_template.json`, `ANNOUNCEMENT_INTERVAL_SECONDS=3600`, and `ANNOUNCEMENT_FIRST_RUN_SECONDS=60` as part of the image deployment in a single revision.
 
 ## Bot Commands
 
