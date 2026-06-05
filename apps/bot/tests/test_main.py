@@ -2,6 +2,7 @@ import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 import datetime
 from telegram import Update, User, Chat, Message
+from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 from main import (
     get_configured_announcement_job_name,
@@ -96,6 +97,112 @@ class TestConfiguredAnnouncementJob:
             chat_id=chat_id,
             name=get_configured_announcement_job_name(chat_id),
         )
+
+
+class TestUpdateAnnouncement:
+    @pytest.mark.asyncio
+    @patch("main.get_rave_message", new_callable=AsyncMock)
+    async def test_update_announcement_edits_existing_message(self, mock_get_rave_message):
+        from main import LAST_ANNOUNCEMENT_UPDATE_KEY, update_announcement
+
+        mock_get_rave_message.return_value = "<b>Upcoming events</b>"
+        edited_message = MagicMock()
+        edited_message.message_id = 111
+        edited_message.pin = AsyncMock()
+
+        context = MagicMock()
+        context.chat_data = {"announcement_id": 111}
+        context.bot_data = {}
+        context.bot.edit_message_text = AsyncMock(return_value=edited_message)
+        context.bot.send_message = AsyncMock()
+
+        await update_announcement(context, -1001234567890)
+
+        context.bot.edit_message_text.assert_called_once()
+        context.bot.send_message.assert_not_called()
+        edited_message.pin.assert_called_once_with(disable_notification=True)
+        assert context.chat_data["announcement_id"] == 111
+        assert context.bot_data[LAST_ANNOUNCEMENT_UPDATE_KEY]["outcome"] == "success"
+
+    @pytest.mark.asyncio
+    @patch("main.get_rave_message", new_callable=AsyncMock)
+    async def test_update_announcement_treats_not_modified_as_success(
+        self, mock_get_rave_message
+    ):
+        from main import LAST_ANNOUNCEMENT_UPDATE_KEY, update_announcement
+
+        mock_get_rave_message.return_value = "<b>Upcoming events</b>"
+        context = MagicMock()
+        context.chat_data = {"announcement_id": 111}
+        context.bot_data = {}
+        context.bot.edit_message_text = AsyncMock(
+            side_effect=BadRequest("Message is not modified")
+        )
+        context.bot.send_message = AsyncMock()
+
+        await update_announcement(context, -1001234567890)
+
+        context.bot.send_message.assert_not_called()
+        assert context.chat_data["announcement_id"] == 111
+        assert context.bot_data[LAST_ANNOUNCEMENT_UPDATE_KEY]["outcome"] == "success"
+        assert "not modified" in context.bot_data[LAST_ANNOUNCEMENT_UPDATE_KEY]["reason"]
+
+    @pytest.mark.asyncio
+    @patch("main.get_rave_message", new_callable=AsyncMock)
+    async def test_update_announcement_recovers_from_stale_message_id(
+        self, mock_get_rave_message
+    ):
+        from main import LAST_ANNOUNCEMENT_UPDATE_KEY, update_announcement
+
+        mock_get_rave_message.return_value = "<b>Upcoming events</b>"
+        new_message = MagicMock()
+        new_message.message_id = 222
+        new_message.pin = AsyncMock()
+
+        context = MagicMock()
+        context.chat_data = {"announcement_id": 111}
+        context.bot_data = {}
+        context.bot.edit_message_text = AsyncMock(
+            side_effect=BadRequest("Message to edit not found")
+        )
+        context.bot.send_message = AsyncMock(return_value=new_message)
+        context.bot.unpin_chat_message = AsyncMock()
+        context.bot.delete_message = AsyncMock()
+
+        await update_announcement(context, -1001234567890)
+
+        context.bot.send_message.assert_called_once()
+        new_message.pin.assert_called_once_with(disable_notification=True)
+        assert context.chat_data["announcement_id"] == 222
+        context.bot.unpin_chat_message.assert_called_once_with(
+            chat_id=-1001234567890, message_id=111
+        )
+        context.bot.delete_message.assert_called_once_with(
+            chat_id=-1001234567890, message_id=111
+        )
+        assert context.bot_data[LAST_ANNOUNCEMENT_UPDATE_KEY]["outcome"] == "success"
+
+    @pytest.mark.asyncio
+    @patch("main.get_rave_message", new_callable=AsyncMock)
+    async def test_update_announcement_does_not_create_new_message_for_bad_html(
+        self, mock_get_rave_message
+    ):
+        from main import LAST_ANNOUNCEMENT_UPDATE_KEY, update_announcement
+
+        mock_get_rave_message.return_value = "<b>Broken"
+        context = MagicMock()
+        context.chat_data = {"announcement_id": 111}
+        context.bot_data = {}
+        context.bot.edit_message_text = AsyncMock(
+            side_effect=BadRequest("Can't parse entities")
+        )
+        context.bot.send_message = AsyncMock()
+
+        await update_announcement(context, -1001234567890)
+
+        context.bot.send_message.assert_not_called()
+        assert context.chat_data["announcement_id"] == 111
+        assert context.bot_data[LAST_ANNOUNCEMENT_UPDATE_KEY]["outcome"] == "failure"
 
 
 class TestUpdateCache:

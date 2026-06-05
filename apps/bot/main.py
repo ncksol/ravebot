@@ -5,7 +5,7 @@ from collections import defaultdict
 import threading
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.error import BadRequest
+from telegram.error import BadRequest, TelegramError
 from telegram.ext import (
     Application,
     ApplicationBuilder,
@@ -563,6 +563,35 @@ def remove_job_if_exists(name: str, context: ContextTypes.DEFAULT_TYPE) -> bool:
     return True
 
 
+LAST_ANNOUNCEMENT_UPDATE_KEY = "last_announcement_update"
+RECOVERABLE_ANNOUNCEMENT_EDIT_ERRORS = (
+    "message to edit not found",
+    "message not found",
+    "message can't be edited",
+    "message cannot be edited",
+)
+
+
+def is_recoverable_announcement_edit_error(error_message: str) -> bool:
+    normalized_error = error_message.lower()
+    return any(
+        recoverable_error in normalized_error
+        for recoverable_error in RECOVERABLE_ANNOUNCEMENT_EDIT_ERRORS
+    )
+
+
+def record_announcement_update_status(
+    context: ContextTypes.DEFAULT_TYPE, outcome: str, reason: str
+):
+    context.bot_data[LAST_ANNOUNCEMENT_UPDATE_KEY] = {
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).strftime(
+            "%Y-%m-%d %H:%M:%S"
+        ),
+        "outcome": outcome,
+        "reason": reason,
+    }
+
+
 async def update_announcement_timer(context: ContextTypes.DEFAULT_TYPE):
     logger.info("Running scheduled announcement update...")
     job = context.job
@@ -579,6 +608,8 @@ async def update_announcement(context: ContextTypes.DEFAULT_TYPE, chat_id: int):
 
     message = await get_rave_message(context)
     msg_object = None
+    should_create_new_message = old_announcement_id is None
+
     if old_announcement_id is not None:
         try:
             logger.info("Announcement message found. Updating...")
@@ -592,24 +623,48 @@ async def update_announcement(context: ContextTypes.DEFAULT_TYPE, chat_id: int):
         except BadRequest as e:
             if "Message is not modified" in e.message:
                 logger.info("Nothing changed. Quitting...")
+                record_announcement_update_status(
+                    context, "success", "message not modified"
+                )
                 return
+            if is_recoverable_announcement_edit_error(e.message):
+                logger.warning(f"Stored announcement message is stale: {e.message}")
+                should_create_new_message = True
             else:
-                logger.warning(f"Failed to edit message: {e.message}")
-                msg_object = None
+                logger.error(f"Failed to edit announcement message: {e.message}")
+                record_announcement_update_status(
+                    context, "failure", f"edit failed: {e.message}"
+                )
+                return
 
-    if msg_object is None:
-        logger.info("Creating new announcement message...")
-        msg_object = await context.bot.send_message(
-            chat_id=chat_id,
-            text=message,
-            parse_mode=ParseMode.HTML,
-            disable_web_page_preview=True,
-        )
+    if should_create_new_message:
+        try:
+            logger.info("Creating new announcement message...")
+            msg_object = await context.bot.send_message(
+                chat_id=chat_id,
+                text=message,
+                parse_mode=ParseMode.HTML,
+                disable_web_page_preview=True,
+            )
+        except TelegramError as e:
+            logger.error(f"Failed to create announcement message: {e.message}")
+            record_announcement_update_status(
+                context, "failure", f"create failed: {e.message}"
+            )
+            return
 
     if msg_object is not None:
-        await msg_object.pin(disable_notification=True)
+        try:
+            await msg_object.pin(disable_notification=True)
+        except TelegramError as e:
+            logger.error(f"Failed to pin announcement message: {e.message}")
+            record_announcement_update_status(
+                context, "failure", f"pin failed: {e.message}"
+            )
+            return
+
         context.chat_data["announcement_id"] = msg_object.message_id
-        # Clean up old message after new one is successfully created and pinned
+        record_announcement_update_status(context, "success", "announcement updated")
         if (
             old_announcement_id is not None
             and msg_object.message_id != old_announcement_id
