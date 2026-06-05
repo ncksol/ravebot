@@ -290,6 +290,53 @@ class TestUpdateCache:
         assert context.chat_data["cache"].events == mock_events
         mock_get_events.assert_called_once()
 
+    @pytest.mark.asyncio
+    @patch("main.get_events")
+    async def test_update_cache_keeps_existing_cache_on_api_failure(self, mock_get_events):
+        existing_events = [
+            Event(
+                title="Existing Event",
+                start_time="2024-01-15T20:00:00",
+                end_time="2024-01-15T23:00:00",
+                location="Existing Venue",
+                url="https://example.com/existing",
+                description="Existing description",
+            )
+        ]
+        existing_cache = Cache(datetime.datetime(2024, 1, 1), existing_events)
+        mock_get_events.return_value = None
+        context = MagicMock()
+        context.chat_data = {"cache": existing_cache}
+
+        await update_cache(context)
+
+        assert context.chat_data["cache"] is existing_cache
+        assert context.chat_data["cache"].events == existing_events
+
+    @pytest.mark.asyncio
+    @patch("main.get_events")
+    async def test_update_cache_accepts_empty_calendar_response(self, mock_get_events):
+        existing_events = [
+            Event(
+                title="Existing Event",
+                start_time="2024-01-15T20:00:00",
+                end_time="2024-01-15T23:00:00",
+                location="Existing Venue",
+                url="https://example.com/existing",
+                description="Existing description",
+            )
+        ]
+        existing_cache = Cache(datetime.datetime(2024, 1, 1), existing_events)
+        mock_get_events.return_value = []
+        context = MagicMock()
+        context.chat_data = {"cache": existing_cache}
+
+        await update_cache(context)
+
+        assert context.chat_data["cache"] is existing_cache
+        assert context.chat_data["cache"].events == []
+        assert context.chat_data["cache"].last_update.date() == datetime.datetime.now().date()
+
 
 class TestGetRaveMessage:
     @pytest.mark.asyncio
@@ -481,3 +528,39 @@ class TestCommandHandlers:
             configured_announcement_unset_message
         )
         context.job_queue.get_jobs_by_name.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_status_command_reports_announcement_configuration(self, monkeypatch):
+        import main
+        from main import LAST_ANNOUNCEMENT_UPDATE_KEY, status_command
+
+        monkeypatch.setattr(main.BotConfiguration, "admin_id", 123456)
+        monkeypatch.setattr(main.AnnouncementConfiguration, "chat_id", -1001234567890)
+
+        update = MagicMock()
+        update.message.date = datetime.datetime.now(datetime.timezone.utc)
+        update.effective_user.id = 123456
+        update.effective_message.reply_html = AsyncMock()
+
+        context = MagicMock()
+        context.chat_data = {
+            "announcement_id": 222,
+            "cache": Cache(datetime.datetime.now(), []),
+        }
+        context.bot_data = {
+            LAST_ANNOUNCEMENT_UPDATE_KEY: {
+                "timestamp": "2026-06-05 10:00:00",
+                "outcome": "success",
+                "reason": "announcement updated",
+            }
+        }
+        context.job_queue.jobs.return_value = [MagicMock()]
+        context.job_queue.get_jobs_by_name.return_value = [MagicMock()]
+
+        await status_command(update, context)
+
+        status_text = update.effective_message.reply_html.call_args.args[0]
+        assert "📌 Announcement config: Enabled" in status_text
+        assert "📌 Announcement job: Active" in status_text
+        assert "📌 Announcement message: 222" in status_text
+        assert "🧾 Last announcement update: success at 2026-06-05 10:00:00" in status_text

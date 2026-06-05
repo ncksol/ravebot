@@ -486,6 +486,37 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         status_message += "⚠️ Cache: Not initialized\n"
 
+    # Check announcement updater status
+    if AnnouncementConfiguration.chat_id is None:
+        status_message += "📌 Announcement config: Disabled\n"
+        status_message += "📌 Announcement job: Inactive\n"
+    else:
+        status_message += "📌 Announcement config: Enabled\n"
+        configured_jobs = context.job_queue.get_jobs_by_name(
+            get_configured_announcement_job_name(AnnouncementConfiguration.chat_id)
+        )
+        announcement_job_status = "Active" if configured_jobs else "Inactive"
+        status_message += f"📌 Announcement job: {announcement_job_status}\n"
+
+    announcement_id = context.chat_data.get("announcement_id")
+    if announcement_id is None:
+        status_message += "📌 Announcement message: Not initialized\n"
+    else:
+        status_message += f"📌 Announcement message: {announcement_id}\n"
+
+    last_announcement_update = context.bot_data.get(LAST_ANNOUNCEMENT_UPDATE_KEY)
+    if last_announcement_update:
+        status_message += (
+            "🧾 Last announcement update: "
+            f"{last_announcement_update['outcome']} at "
+            f"{last_announcement_update['timestamp']}"
+        )
+        if last_announcement_update.get("reason"):
+            status_message += f" ({last_announcement_update['reason']})"
+        status_message += "\n"
+    else:
+        status_message += "🧾 Last announcement update: Not recorded\n"
+
     # Check rate limiting - use generator expression for efficiency
     active_users = sum(1 for v in rate_limit_tracker.values() if v)
     status_message += f"⏱️ Rate limiting: Active ({active_users} users tracked)\n"
