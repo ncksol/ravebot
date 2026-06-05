@@ -52,9 +52,14 @@ class TestRemoveJobIfExists:
 
 class TestConfiguredAnnouncementJob:
     def test_get_configured_announcement_job_name(self):
-        assert get_configured_announcement_job_name(-1001234567890) == "configured_update_-1001234567890"
+        assert (
+            get_configured_announcement_job_name(-1001234567890)
+            == "configured_update_-1001234567890"
+        )
 
-    def test_register_configured_announcement_job_skips_when_chat_not_configured(self, monkeypatch):
+    def test_register_configured_announcement_job_skips_when_chat_not_configured(
+        self, monkeypatch
+    ):
         import main
 
         monkeypatch.setattr(main.AnnouncementConfiguration, "chat_id", None)
@@ -70,10 +75,11 @@ class TestConfiguredAnnouncementJob:
         application = MagicMock()
         existing_job = MagicMock()
         application.job_queue.get_jobs_by_name.return_value = [existing_job]
+        chat_id = -1001234567890
 
         result = register_configured_announcement_job(
             application,
-            chat_id=-1001234567890,
+            chat_id=chat_id,
             interval_seconds=1800,
             first_run_seconds=15,
         )
@@ -81,14 +87,14 @@ class TestConfiguredAnnouncementJob:
         assert result is True
         existing_job.schedule_removal.assert_called_once()
         application.job_queue.get_jobs_by_name.assert_called_once_with(
-            "configured_update_-1001234567890"
+            get_configured_announcement_job_name(chat_id)
         )
         application.job_queue.run_repeating.assert_called_once_with(
             update_announcement_timer,
             interval=1800,
             first=15,
-            chat_id=-1001234567890,
-            name="configured_update_-1001234567890",
+            chat_id=chat_id,
+            name=get_configured_announcement_job_name(chat_id),
         )
 
 
@@ -251,3 +257,29 @@ class TestCommandHandlers:
         await calendar_command(update, context)
 
         context.bot.send_message.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_set_command_configured_chat(self):
+        """Test set_command when chat_id equals configured announcement chat"""
+        from main import set_command
+
+        configured_chat_id = -1001234567890
+
+        update = MagicMock()
+        update.message.date = datetime.datetime.now(datetime.timezone.utc)
+        update.effective_user.id = 12345
+        update.effective_message.chat_id = configured_chat_id
+        update.effective_message.reply_text = AsyncMock()
+
+        context = MagicMock()
+        context.application = MagicMock()
+        context.bot_data = {"update_timers": {configured_chat_id: True}}
+
+        with patch("main.BotConfiguration.admin_id", 12345):
+            with patch("main.AnnouncementConfiguration.chat_id", configured_chat_id):
+                await set_command(update, context)
+
+        update.effective_message.reply_text.assert_called_once_with(
+            "Configured announcement updater is managed by deployment and is active."
+        )
+        assert configured_chat_id not in context.bot_data["update_timers"]

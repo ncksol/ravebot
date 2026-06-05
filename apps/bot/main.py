@@ -7,6 +7,7 @@ import threading
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import BadRequest
 from telegram.ext import (
+    Application,
     ApplicationBuilder,
     ContextTypes,
     CommandHandler,
@@ -506,42 +507,44 @@ def get_configured_announcement_job_name(chat_id: int) -> str:
 
 
 def register_configured_announcement_job(
-    application,
+    application: Application,
     chat_id: int | None = None,
     interval_seconds: int | None = None,
     first_run_seconds: int | None = None,
 ) -> bool:
     configured_chat_id = (
-       AnnouncementConfiguration.chat_id if chat_id is None else chat_id
+        AnnouncementConfiguration.chat_id if chat_id is None else chat_id
     )
     if configured_chat_id is None:
-       logger.warning("ANNOUNCEMENT_CHAT_ID is not configured; announcement updater not scheduled")
-       return False
+        logger.warning(
+            "ANNOUNCEMENT_CHAT_ID is not configured; announcement updater not scheduled"
+        )
+        return False
 
     configured_interval = (
-       AnnouncementConfiguration.interval_seconds
-       if interval_seconds is None
-       else interval_seconds
+        AnnouncementConfiguration.interval_seconds
+        if interval_seconds is None
+        else interval_seconds
     )
     configured_first_run = (
-       AnnouncementConfiguration.first_run_seconds
-       if first_run_seconds is None
-       else first_run_seconds
+        AnnouncementConfiguration.first_run_seconds
+        if first_run_seconds is None
+        else first_run_seconds
     )
     job_name = get_configured_announcement_job_name(configured_chat_id)
 
     for job in application.job_queue.get_jobs_by_name(job_name):
-       job.schedule_removal()
+        job.schedule_removal()
 
     application.job_queue.run_repeating(
-       update_announcement_timer,
-       interval=configured_interval,
-       first=configured_first_run,
-       chat_id=configured_chat_id,
-       name=job_name,
+        update_announcement_timer,
+        interval=configured_interval,
+        first=configured_first_run,
+        chat_id=configured_chat_id,
+        name=job_name,
     )
-    logger.warning(
-       f"Configured announcement updater scheduled for chat {configured_chat_id}"
+    logger.info(
+        f"Configured announcement updater scheduled for chat {configured_chat_id}"
     )
     return True
 
@@ -849,7 +852,7 @@ if __name__ == "__main__":
                     chat_id=chat_id,
                     name=f"update_{chat_id}",
                 )
-                logger.warning(f"Restored manual hourly update timer for chat {chat_id}")
+                logger.info(f"Restored manual hourly update timer for chat {chat_id}")
 
     application.post_init = post_init
 
