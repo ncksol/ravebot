@@ -51,7 +51,7 @@ jobs:
             echo "::error::ANNOUNCEMENT_CHAT_ID secret is required for production announcement updates"
             exit 1
           fi
-          echo "✓ ANNOUNCEMENT_CHAT_ID is configured"
+          echo "ANNOUNCEMENT_CHAT_ID is configured"
 
       - name: Create GitHub Release
         env:
@@ -90,7 +90,7 @@ jobs:
           resourceGroup: ${{ env.RESOURCE_GROUP }}
           containerAppName: ${{ env.CONTAINER_APP_NAME }}
           imageToDeploy: ${{ env.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-          environmentVariables: |
+          environmentVariables: >-
             ANNOUNCEMENT_CHAT_ID=${{ secrets.ANNOUNCEMENT_CHAT_ID }}
             ANNOUNCEMENT_INTERVAL_SECONDS=3600
             ANNOUNCEMENT_FIRST_RUN_SECONDS=60
