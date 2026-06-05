@@ -177,6 +177,7 @@ async def set_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     chat_id = update.effective_message.chat_id
     if chat_id == AnnouncementConfiguration.chat_id:
+        remove_job_if_exists(f"update_{chat_id}", context)
         register_configured_announcement_job(context.application)
         context.bot_data.get("update_timers", {}).pop(chat_id, None)
         await update.effective_message.reply_text(

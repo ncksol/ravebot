@@ -271,14 +271,17 @@ class TestCommandHandlers:
         update.effective_message.chat_id = configured_chat_id
         update.effective_message.reply_text = AsyncMock()
 
+        manual_job = MagicMock()
         context = MagicMock()
         context.application = MagicMock()
         context.bot_data = {"update_timers": {configured_chat_id: True}}
+        context.job_queue.get_jobs_by_name.return_value = [manual_job]
 
         with patch("main.BotConfiguration.admin_id", 12345):
             with patch("main.AnnouncementConfiguration.chat_id", configured_chat_id):
                 await set_command(update, context)
 
+        manual_job.schedule_removal.assert_called_once()
         update.effective_message.reply_text.assert_called_once_with(
             "Configured announcement updater is managed by deployment and is active."
         )
